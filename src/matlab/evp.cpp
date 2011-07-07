@@ -212,7 +212,7 @@ class MexProgressMonitor {
     if (callbackName_->length()) {
       const char* temp = callbackName_->c_str();
       mxArray* name = mxCreateCharMatrixFromStrings(1, &temp);
-      mxArray* val = mxCreateScalarDouble(progress);
+      mxArray* val = mxCreateDoubleScalar(progress);
       mxArray* rhs[2] = {name, val};
       mexCallMATLAB(0, NULL, 2, rhs, "feval");
       mxDestroyArray(val);
