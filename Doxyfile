@@ -1,0 +1,14 @@
+PROJECT_NAME        = EarlyVisionPlatform
+PROJECT_NUMBER      = 0.1
+FILE_PATTERNS       = *.h
+INPUT               = include
+INCLUDE_PATH        = include
+RECURSIVE           = YES
+BUILTIN_STL_SUPPORT = YES
+SHOW_NAMESPACES     = YES
+SHOW_DIRECTORIES    = YES
+SORT_BY_SCOPE_NAME  = YES
+INLINE_SOURCES      = YES
+SOURCE_BROWSER      = YES
+OUTPUT_DIRECTORY    = doc
+GENERATE_HTML       = YES

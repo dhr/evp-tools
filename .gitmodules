@@ -1,0 +1,6 @@
+[submodule "deps/clip"]
+	path = deps/clip
+	url = git://github.com/dhr/clip.git
+[submodule "deps/evp"]
+	path = deps/evp
+	url = git://github.com/dhr/evp.git
