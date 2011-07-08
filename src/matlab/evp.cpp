@@ -257,14 +257,14 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
   --nrhs; ++prhs;
   try {
     if (commandName == "cpu") {
-      ClipInit(CPU, openCLNotificationHandler);
+      ClipInit(CPU, Float16, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
     }
     
     if (commandName == "gpu") {
-      ClipInit(GPU, openCLNotificationHandler);
+      ClipInit(GPU, Float16, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
@@ -335,14 +335,14 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
       if (deviceIndex < 0 || deviceIndex >= i32(devices.size()))
         mexErrMsgTxt("Invalid device index.");
       
-      ClipInit(devices[deviceIndex], openCLNotificationHandler);
+      ClipInit(devices[deviceIndex], Float16, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
     }
     
     if (!initialized) {
-      ClipInit(GPU, openCLNotificationHandler);
+      ClipInit(GPU, Float16, openCLNotificationHandler);
       initCommands(commands);
       initialized = true;
     }
