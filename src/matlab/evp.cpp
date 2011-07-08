@@ -270,6 +270,24 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
       return;
     }
     
+    if (commandName == "bitdepth") {
+      if (nrhs == 0)
+        mexErrMsgTxt("Missing argument for bit depth.");
+        
+      i32 depth = i32(mxGetScalar(*prhs));
+      ValueType valType = ValueTypeForBitDepth(depth);
+      
+      if (!initialized) {
+        ClipInit(GPU, valType, openCLNotificationHandler);
+        initCommands(commands);
+      }
+      else
+        ClipInit(CurrentDevice(), valType, openCLNotificationHandler);
+      
+      initialized = true;
+      return;
+    }
+    
     if (commandName == "device") {
       vector<cl::Platform> platforms;
       cl::Platform::get(&platforms);
