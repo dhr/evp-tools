@@ -257,14 +257,14 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
   --nrhs; ++prhs;
   try {
     if (commandName == "cpu") {
-      ClipInit(CPU, Float16, openCLNotificationHandler);
+      ClipInit(CPU, Float16, Float32, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
     }
     
     if (commandName == "gpu") {
-      ClipInit(GPU, Float16, openCLNotificationHandler);
+      ClipInit(GPU, Float16, Float32, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
@@ -275,14 +275,20 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
         mexErrMsgTxt("Missing argument for bit depth.");
         
       i32 depth = i32(mxGetScalar(*prhs));
-      ValueType valType = ValueTypeForBitDepth(depth);
+      ValueType imValType = ValueTypeForBitDepth(depth);
+      
+      --nrhs; ++prhs;
+      ValueType filtValType = imValType;
+      if (nrhs)
+        filtValType = ValueTypeForBitDepth(i32(mxGetScalar(*prhs)));
       
       if (!initialized) {
-        ClipInit(GPU, valType, openCLNotificationHandler);
+        ClipInit(GPU, imValType, filtValType, openCLNotificationHandler);
         initCommands(commands);
       }
       else
-        ClipInit(CurrentDevice(), valType, openCLNotificationHandler);
+        ClipInit(CurrentDevice(), imValType, filtValType,
+                 openCLNotificationHandler);
       
       initialized = true;
       return;
@@ -353,14 +359,15 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
       if (deviceIndex < 0 || deviceIndex >= i32(devices.size()))
         mexErrMsgTxt("Invalid device index.");
       
-      ClipInit(devices[deviceIndex], Float16, openCLNotificationHandler);
+      ClipInit(devices[deviceIndex], Float16, Float32,
+               openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
     }
     
     if (!initialized) {
-      ClipInit(GPU, Float16, openCLNotificationHandler);
+      ClipInit(GPU, Float16, Float32, openCLNotificationHandler);
       initCommands(commands);
       initialized = true;
     }
