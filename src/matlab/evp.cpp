@@ -122,10 +122,8 @@ class LogLinCommand : public MatlabCommand {
   
   void execute(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
     ImageBuffer image = CreateBufferFromMxArray(*prhs);
-    NDArray<ImageBuffer,2> initial;
-    initOps_->apply(image, initial);
-    
-    plhs[0] = CreateMxArrayFromBufferArray(initial);
+    CurveBuffersPtr initial = initOps_->apply(image);
+    plhs[0] = CreateMxArrayFromBufferArray(*initial);
   }
   
   Monitorable* getMonitorable() { return initOps_.get(); }
@@ -171,13 +169,12 @@ class RelaxCurveCommand : public MatlabCommand {
   }
   
   void execute(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
-    NDArray<ImageBuffer,2> initial;
-    NDArray<ImageBuffer,2> relaxed;
+    CurveBuffers initial;
     
     CreateBufferArrayFromMxArray(prhs[0], initial);
-    relax_->apply(initial, relaxed);
+    CurveBuffersPtr relaxed = relax_->apply(initial);
     
-    plhs[0] = CreateMxArrayFromBufferArray(relaxed);
+    plhs[0] = CreateMxArrayFromBufferArray(*relaxed);
   }
   
   Monitorable* getMonitorable() { return relax_.get(); }
