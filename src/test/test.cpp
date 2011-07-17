@@ -3,7 +3,7 @@
 
 #define USE_TEXTURES 0
 
-#include <clip/clip.h>
+#include <clip.hpp>
 
 #define NUM_THETAS 8
 #define NUM_CURVS 1
@@ -30,8 +30,8 @@
 //#define IMAGE "leaves.jpg"
 //#define IMAGE2 "ocean-wave.jpg"
 
-#define OUTPUT "../output/"
-#define IMAGES "../images/"
+#define OUTPUT "output/"
+#define IMAGES "images/"
 
 #define THING_TO_DO runCode();
 //#define THING_TO_DO profileOp("filter");
@@ -40,10 +40,10 @@
 //#define THING_TO_DO testFlowCompatibilities();
 //#define THING_TO_DO testCurveCompatibilities();
 
-#include "evp/evp.h"
-#include "evp/io.h"
-#include "evp/io/imageio.h"
-#include "evp/util/tictoc.h"
+#include <evp.hpp>
+#include <evp/io.hpp>
+#include <evp/io/imageio.hpp>
+#include <evp/util/tictoc.hpp>
 
 using namespace clip;
 using namespace evp;
@@ -241,14 +241,21 @@ inline void makePerfectRotationalFlow(FlowInitOpParams& initFlowParams,
 
 void progMon(f32 progress) {
   static f32 last = 0;
+  i32 tot = 35;
   
-  i32 n = i32(progress*100)/2 - i32(last*100)/2;
+  if (last == 0) {
+    for (i32 i = 0; i < tot; ++i)
+      std::cout << "_";
+    std::cout << "\n";
+  }
+  
+  i32 n = i32(progress*tot) - i32(last*tot);
   for (i32 i = 0; i < n; ++i)
-    std::cout << '|';
+    std::cout << '^';
   
   if (progress == 1) {
     last = 0;
-    std::cout << '\n';
+    std::cout << "\n";
   }
   else
     last = progress;
@@ -265,10 +272,9 @@ inline void runCode() {
   unsigned numThetas = NUM_THETAS;
   unsigned numCurvs = NUM_CURVS;
   
-  NDArray<ImageBuffer,0> brightness(imBuf);
-  NDArray<ImageBuffer,2> lines(2*numThetas, numCurvs);
-  NDArray<ImageBuffer,2> edges(2*numThetas, numCurvs);
-  NDArray<ImageBuffer,3> flow(numThetas, numCurvs, numCurvs);
+  CurveBuffersPtr lines(new CurveBuffers(2*numThetas, numCurvs));
+  CurveBuffersPtr edges(new CurveBuffers(2*numThetas, numCurvs));
+  FlowBuffersPtr flow(new FlowBuffers(numThetas, numCurvs, numCurvs));
   
 #if DO_LINES
   NDArray<ImageData,2> lineCols(2*numThetas, numCurvs);
@@ -277,15 +283,15 @@ inline void runCode() {
   std::cout << "Constructing initial line operators..." << std::endl;
   LLInitOpParams initLineParams(Lines, numThetas, numCurvs);
   LLInitOps initLineOps(initLineParams);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   tic();
   std::cout << "Applying line operators to image..." << std::endl;
-  initLineOps.apply(imBuf, lines);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  lines = initLineOps.apply(imBuf);
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
-  ReadImageDataFromBufferArray(lines, lineCols);
-  WriteLLColumnsToPDF(OUTPUT "lines-initial-ops.pdf", lineCols, 0.01);
+  CurveDataPtr lineCols = ReadImageDataFromBufferArray(*lines);
+  WriteLLColumnsToPDF(OUTPUT "lines-initial-ops.pdf", *lineCols, 0.01);
   
 #if RELAX_LINES
   tic();
@@ -293,35 +299,33 @@ inline void runCode() {
   RelaxCurveOpParams lineCompatParams(Lines, numThetas, numCurvs);
   RelaxCurveOp lineCompatOps(lineCompatParams, LINE_ITERATIONS, LINE_DELTA);
   lineCompatOps.initialize();
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   tic();
   std::cout << "Relaxing lines..." << std::endl;
-  lineCompatOps.apply(lines, lines);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  lines = lineCompatOps.apply(*lines);
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
-  ReadImageDataFromBufferArray(lines, lineCols);
+  lineCols = ReadImageDataFromBufferArray(*lines);
   WriteLLColumnsToPDF(OUTPUT "lines-relaxed.pdf", lineCols, 0.01);
 #endif
 #endif
   
 #if DO_EDGES
-  NDArray<ImageData,2> edgeCols(2*numThetas, numCurvs);
-  
   tic();
   std::cout << "Constructing initial edge operators..." << std::endl;
   LLInitOpParams initEdgeParams(Edges, numThetas, numCurvs);
   LLInitOps initEdgeOps(initEdgeParams);
   initEdgeOps.addProgressListener(progMon);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   tic();
   std::cout << "Applying edge operators to image..." << std::endl;
-  initEdgeOps.apply(imBuf, edges);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  edges = initEdgeOps.apply(imBuf);
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
-  ReadImageDataFromBufferArray(edges, edgeCols);
-  WriteLLColumnsToPDF(OUTPUT "edges-initial-ops.pdf", edgeCols, 0.02);
+  CurveDataPtr edgeCols = ReadImageDataFromBufferArray(*edges);
+  WriteLLColumnsToPDF(OUTPUT "edges-initial-ops.pdf", *edgeCols, 0.02);
   
 #if RELAX_EDGES
   tic();
@@ -329,15 +333,15 @@ inline void runCode() {
   RelaxCurveOpParams edgeCompatParams(Edges, numThetas, numCurvs);
   RelaxCurveOp edgeCompatOps(edgeCompatParams, EDGE_ITERATIONS, EDGE_DELTA);
   edgeCompatOps.addProgressListener(progMon);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   tic();
   std::cout << "Relaxing edges..." << std::endl;
-  edgeCompatOps.apply(edges, edges);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  edges = edgeCompatOps.apply(*edges);
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
-  ReadImageDataFromBufferArray(edges, edgeCols);
-  WriteLLColumnsToPDF(OUTPUT "edges-relaxed.pdf", edgeCols, 0.01);
+  edgeCols = ReadImageDataFromBufferArray(*edges);
+  WriteLLColumnsToPDF(OUTPUT "edges-relaxed.pdf", *edgeCols, 0.01);
 #endif
 #endif
 
@@ -349,13 +353,13 @@ inline void runCode() {
   FlowInitOpParams initFlowParams(numThetas, numCurvs);
 //  JitteredFlowInitOps initFlowOps(initFlowParams);
   FlowInitOps initFlowOps(initFlowParams);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   tic();
   std::cout << "Applying initial flow operators to image..." << std::endl;
   initFlowOps.apply(imBuf, flow);
   CurrentQueue().finish();
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
 #if MANUAL_CURVATURES
   ReadImageDataFromBufferArray(flow, flowCols);
@@ -378,13 +382,13 @@ inline void runCode() {
   relaxFlowParams.inhRatio = 10;
 #endif
   RelaxFlowOp relaxFlow(relaxFlowParams, FLOW_ITERATIONS, FLOW_DELTA);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   tic();
   std::cout << "Relaxing flow..." << std::endl;
   relaxFlow.apply(flow, flow);
   CurrentQueue().finish();
-  std::cout << "Done in " << toc()/1000.f << " milliseconds." << std::endl;
+  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   ReadImageDataFromBufferArray(flow, flowCols);
   WriteFlowToPDF(OUTPUT "flow-relaxed.pdf", flowCols);
@@ -418,9 +422,9 @@ void testFilter(cl::Kernel &filter, ImageBuffer im1Buf, ImageBuffer output,
   kernel.balance().normalize();
   
 #if 0
-  ImageBuffer kernBuf(kernel, 4, 1, Texture);
+  ImageBuffer kernBuf(kernel, CurrentFilterValueType(), 4, 1, Texture);
 #else
-  ImageBuffer kernBuf(kernel, 4, 1, Global);
+  ImageBuffer kernBuf(kernel, CurrentFilterValueType(), 4, 1, Global);
 #endif
   
   int nElems = 1 ? 1 : 4;
@@ -475,6 +479,7 @@ void profileOp(std::string kernelName) {
   getImages(imNames, imBufs);
   
   ImageBuffer output(imBufs[0].width(), imBufs[0].height(),
+                     CurrentImBufValueType(),
                      imBufs[0].xAlign(), imBufs[0].yAlign());
   
   cl::Event event;
@@ -491,7 +496,7 @@ void profileOp(std::string kernelName) {
 //  endTime = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
 //  
 //  std::cout << "Done in " << (endTime - startTime)/1000000.f << " "
-//            << "milliseconds." << std::endl;
+//            << "milliseconds.\n" << std::endl;
   
   ImageData outputData = output.fetchData();
   
