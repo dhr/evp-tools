@@ -3,6 +3,8 @@
 #include <map>
 #include <sstream>
 
+#define NO_GL_INTEROP
+
 #include <evp.hpp>
 #include <evp/io.hpp>
 

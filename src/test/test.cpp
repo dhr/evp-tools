@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 
+#define NO_GL_INTEROP
 #define USE_TEXTURES 0
 
 #include <clip.hpp>
