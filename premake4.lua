@@ -16,7 +16,7 @@ solution "EVP"
     flags {"OptimizeSpeed"}
   
   configuration "not macosx"
-    links {"opencl"}
+    links {"OpenCL"}
   
   configuration {"macosx", "gmake"}
     linkoptions {"-framework OpenCL"}
