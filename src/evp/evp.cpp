@@ -20,6 +20,12 @@ bool runFlowRelax = false;
 i32 numOrientations = 8;
 i32 numCurvatures = 3;
 
+i32 curveRelaxIters = 5;
+i32 flowRelaxIters = 10;
+
+f32 curveRelaxDelta = 1.f;
+f32 flowRelaxDelta = 1.f;
+
 string outputDir;
 
 void die(const string& msg) {
@@ -39,6 +45,14 @@ void showHelp() {
   cout << "  --device <id>\t\t Select device <id>. Default is 0.\n";
   cout << "  --nts <n>\t\t Use <n> orientations. Defaults to 8.\n";
   cout << "  --nks <n>\t\t Use <n> curvatures. Defaults to 3.\n";
+  cout << "  --curve-iters <n>\t Use <n> iterations for curve "
+          "relaxation. Defaults to 5.\n";
+  cout << "  --curve-delta <d>\t Use <d> for curve relaxation delta. "
+          "Defaults to 1.\n";
+//  cout << "  --flow-iters <n>\t Use <n> iterations for flow "
+//          "relaxation. Defaults to 10.\n";
+//  cout << "  --flow-delta <d>\t Use <d> for flow relaxation delta. "
+//          "Defaults to 1.\n";
   cout << "  --output-dir <dir>\t Use <dir> for output.\n";
   cout.flush();
 }
@@ -142,6 +156,38 @@ void processOptions(int& argc, char**& argv) {
       if (numCurvatures <= 0 || numCurvatures > 5 || numCurvatures%2 == 0)
         die("Invalid number of curvatures (must > 0, <= 5, and odd)");
     }
+    else if (opt == "--curve-iters") {
+      --argc; ++argv; if (!argc) die("No argument supplied to --curve-iters");
+      stringstream ss(*argv);
+      ss >> curveRelaxIters;
+      
+      if (curveRelaxIters <= 0)
+        die("Invalid number of iterations (must be > 0)");
+    }
+    else if (opt == "--curve-delta") {
+      --argc; ++argv; if (!argc) die("No argument supplied to --curve-delta");
+      stringstream ss(*argv);
+      ss >> curveRelaxDelta;
+      
+      if (curveRelaxDelta <= 0)
+        die("Invalid delta (must be > 0)");
+    }
+//    else if (opt == "--flow-iters") {
+//      --argc; ++argv; if (!argc) die("No argument supplied to --flow-iters");
+//      stringstream ss(*argv);
+//      ss >> flowRelaxIters;
+//      
+//      if (flowRelaxIters <= 0)
+//        die("Invalid number of iterations (must > 0)");
+//    }
+//    else if (opt == "--flow-delta") {
+//      --argc; ++argv; if (!argc) die("No argument supplied to --flow-delta");
+//      stringstream ss(*argv);
+//      ss >> flowRelaxDelta;
+//      
+//      if (flowRelaxDelta <= 0)
+//        die("Invalid delta (must be > 0)");
+//    }
     else if (opt == "--output-dir") {
       --argc; ++argv; if (!argc) die("No argument supplied to --output-dir");
       outputDir = *argv;
@@ -238,7 +284,9 @@ void processImages(int& argc, char**& argv) {
     }
     
     if (!relaxCurve.get() && runCurveRelax) {
-      relaxCurve = shared_ptr<RelaxCurveOp>(new RelaxCurveOp(relaxCurveParams));
+      RelaxCurveOp* temp =
+        new RelaxCurveOp(relaxCurveParams, curveRelaxIters, curveRelaxDelta);
+      relaxCurve = shared_ptr<RelaxCurveOp>(temp);
       relaxCurve->addProgressListener(&progMon);
     }
     
