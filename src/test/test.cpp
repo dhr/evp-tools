@@ -15,7 +15,7 @@
 #define LINE_DELTA 1
 
 #define DO_EDGES 1
-#define RELAX_EDGES 1
+#define RELAX_EDGES 0
 #define EDGE_ITERATIONS 2
 #define EDGE_DELTA 1
 
@@ -26,7 +26,7 @@
 #define FLOW_ITERATIONS 10
 #define FLOW_DELTA 1
 
-#define IMAGE "boats.jpg"
+#define IMAGE "spider.jpg"
 #define IMAGE2 "paolina.jpg"
 //#define IMAGE "leaves.jpg"
 //#define IMAGE2 "ocean-wave.jpg"
@@ -34,12 +34,12 @@
 #define OUTPUT "output/"
 #define IMAGES "images/"
 
-#define THING_TO_DO runCode();
-//#define THING_TO_DO profileOp("filter");
-//#define THING_TO_DO testGabor();
-//#define THING_TO_DO testFlowModel();
-//#define THING_TO_DO testFlowCompatibilities();
-//#define THING_TO_DO testCurveCompatibilities();
+#define THING_TO_DO runCode()
+//#define THING_TO_DO profileOp("filter")
+//#define THING_TO_DO testGabor()
+//#define THING_TO_DO testFlowModel()
+//#define THING_TO_DO testFlowCompatibilities()
+//#define THING_TO_DO testCurveCompatibilities()
 
 #include <evp.hpp>
 #include <evp/io.hpp>
@@ -260,6 +260,8 @@ void progMon(f32 progress) {
   }
   else
     last = progress;
+  
+  std::cout.flush();
 }
 
 inline void runCode() {
@@ -292,6 +294,7 @@ inline void runCode() {
   std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   CurveDataPtr lineCols = ReadImageDataFromBufferArray(*lines);
+  WriteMatlabArray(*lineCols, OUTPUT "lines-initial-ops.mat");
   WriteLLColumnsToPDF(OUTPUT "lines-initial-ops.pdf", *lineCols, 0.01);
   
 #if RELAX_LINES
@@ -308,6 +311,7 @@ inline void runCode() {
   std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   lineCols = ReadImageDataFromBufferArray(*lines);
+  WriteMatlabArray(*lineCols, OUTPUT "lines-relaxed.mat");
   WriteLLColumnsToPDF(OUTPUT "lines-relaxed.pdf", lineCols, 0.01);
 #endif
 #endif
@@ -326,6 +330,7 @@ inline void runCode() {
   std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   CurveDataPtr edgeCols = ReadImageDataFromBufferArray(*edges);
+  WriteMatlabArray(*edgeCols, OUTPUT "edges-initial-ops.mat");
   WriteLLColumnsToPDF(OUTPUT "edges-initial-ops.pdf", *edgeCols, 0.02);
   
 #if RELAX_EDGES
@@ -342,6 +347,7 @@ inline void runCode() {
   std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   edgeCols = ReadImageDataFromBufferArray(*edges);
+  WriteMatlabArray(*edgeCols, OUTPUT "edges-relaxed.mat");
   WriteLLColumnsToPDF(OUTPUT "edges-relaxed.pdf", *edgeCols, 0.01);
 #endif
 #endif
@@ -370,8 +376,9 @@ inline void runCode() {
 #endif
   
 #if WRITE_INITIAL_FLOW
-  ReadImageDataFromBufferArray(flow, flowCols);
-  WriteFlowToPDF(OUTPUT "flow-initial-ops.pdf", flowCols);
+  CurveDataPtr flowCols = ReadImageDataFromBufferArray(*flow);
+  WriteMatlabArray(*flowCols, OUTPUT "flow-initial-ops.mat");
+  WriteFlowToPDF(OUTPUT "flow-initial-ops.pdf", *flowCols);
 #endif
 
 #if RELAX_FLOW
@@ -391,8 +398,9 @@ inline void runCode() {
   CurrentQueue().finish();
   std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
-  ReadImageDataFromBufferArray(flow, flowCols);
-  WriteFlowToPDF(OUTPUT "flow-relaxed.pdf", flowCols);
+  flowCols = ReadImageDataFromBufferArray(flow);
+  WriteMatlabArray(*flowCols, OUTPUT "flow-relaxed.mat");
+  WriteFlowToPDF(OUTPUT "flow-relaxed.pdf", *flowCols);
 #endif
 #endif
 }
@@ -507,7 +515,7 @@ void profileOp(std::string kernelName) {
 
 int main(i32, char *const []) {
   try {
-    THING_TO_DO
+    THING_TO_DO;
   }
   catch (const cl::Error& err) {
     std::cerr << "ERROR: " << err.what() << "(" << err.err() << ")"
