@@ -1,5 +1,6 @@
 /bin
 /build
 /doc
-/test
+/images
+/output
 .DS_Store

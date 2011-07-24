@@ -45,23 +45,53 @@ solution "EVP"
 
   platforms {iif(is64bit, "x64", "x32")}
 
-  -- A simple test harness for running images and debugging
+  if _OPTIONS["no-jpeg"] then
+    defines {"EVP_NO_JPEG"}
+  end
+
+  if _OPTIONS["no-png"] then
+    defines {"EVP_NO_PNG"}
+  end
 
   newoption {
-    trigger = "test-harness",
-    description = "Produce build files to build the test-harness code"
+    trigger = "no-jpeg",
+    description = "Don't enable jpeg I/O (only affects EVP command line tool)"
   }
 
-  if _OPTIONS["test-harness"] then
-    project "test"
+  newoption {
+    trigger = "no-png",
+    description = "Don't enable png I/O (only affects EVP command line tool)"
+  }
+
+  -- The EVP command line tool
+
+  newoption {
+    trigger = "evp",
+    description = "Generate build files for the EVP command line tool"
+  }
+
+  if _OPTIONS["evp"] or _OPTIONS["all"] then
+    project "evp"
       kind "ConsoleApp"
       language "C++"
-      targetname "test"
 
-      files {"src/test/test.cpp"}
+      targetname "evp"
 
       includedirs {"deps/clip/include", "deps/evp/include"}
-      links {"jpeg"}
+
+      files {"src/evp/evp.cpp"}
+
+      if not _OPTIONS["no-jpeg"] then
+        links {"jpeg"}
+      end
+
+      if not _OPTIONS["no-png"] then
+        links {"png"}
+
+        configuration "macosx"
+          includedirs {"/usr/X11/include"}
+          libdirs {"/usr/X11/lib"}
+      end
   end
 
   -- Building MATLAB mex files
@@ -72,7 +102,7 @@ solution "EVP"
     description = "Path to MATLAB root directory ('matlabroot' in MATLAB)"
   }
 
-  if _OPTIONS["matlabroot"] then
+  if _OPTIONS["matlabroot"] or _OPTIONS["all"] then
     project "evpmex"
       kind "SharedLib"
       language "C++"
@@ -120,12 +150,45 @@ solution "EVP"
         }
   end
 
-  if not _OPTIONS["help"] and
-     not _OPTIONS["test-harness"] and
-     not _OPTIONS["matlabroot"] then
-    print "No build files were produced because no relevant options were given."
-    print "Use '--matlabroot=<path>' to generate build files for the MATLAB bindings."
-    print "Use '--test-harness' to generate build files for the test harness."
-    os.exit()
+  -- An ugly test-harness for tweaking and debugging
+
+  newoption {
+    trigger = "test",
+    description = "Generate build files to build the test-harness code"
+  }
+
+  if _OPTIONS["test"] or _OPTIONS["all"] then
+    project "test"
+      kind "ConsoleApp"
+      language "C++"
+      targetname "test"
+
+      files {"src/test/test.cpp"}
+
+      includedirs {"deps/clip/include", "deps/evp/include"}
+
+      if not _OPTIONS["no-jpeg"] then
+        links {"jpeg"}
+      end
+
+      if not _OPTIONS["no-png"] then
+        links {"png"}
+
+        configuration "macosx"
+          includedirs {"/usr/X11/include"}
+          libdirs {"/usr/X11/lib"}
+      end
   end
 
+  if not _OPTIONS["help"] and
+     -- not _OPTIONS["all"] and
+     not _OPTIONS["test-harness"] and
+     not _OPTIONS["matlabroot"] and
+     not _OPTIONS["evp"] then
+    print "No build files were produced because no relevant options were given."
+    print "Use '--matlabroot=<path>' to generate build files for the MATLAB bindings."
+    print "Use '--test' to generate build files for the test harness."
+    print "Use '--evp' to generate build files for the EVP command line tool."
+    -- print "Use '--all' to generate build files for all of the above."
+    os.exit()
+  end
