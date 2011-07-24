@@ -288,5 +288,10 @@ int main(int argc, char** argv) {
   if (!argc)
     die("No image files specified; use --help for help");
   
-  processImages(argc, argv);
+  try {
+    processImages(argc, argv);
+  }
+  catch (const exception& err) {
+    die(err.what());
+  }
 }
