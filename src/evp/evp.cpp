@@ -198,6 +198,8 @@ void processOptions(int& argc, char**& argv) {
       --argc; ++argv; if (!argc) die("No argument supplied to --enqueues");
       stringstream ss(*argv);
       ss >> enqueuesPerFinish;
+      if (enqueuesPerFinish <= 0)
+        die("Invalid enqueues per finish (must be > 0)");
     }
     else if (**argv == '-') {
       die("Unrecognized option " + opt);
