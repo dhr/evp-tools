@@ -12,6 +12,8 @@ using namespace evp;
 i32 platformNum = 0;
 i32 deviceNum = 0;
 
+i32 enqueuesPerFinish = 1000;
+
 bool runCurveInit = false;
 bool runCurveRelax = false;
 bool runFlowInit = false;
@@ -192,6 +194,11 @@ void processOptions(int& argc, char**& argv) {
       --argc; ++argv; if (!argc) die("No argument supplied to --output-dir");
       outputDir = *argv;
     }
+    else if (opt == "--enqueues") {
+      --argc; ++argv; if (!argc) die("No argument supplied to --enqueues");
+      stringstream ss(*argv);
+      ss >> enqueuesPerFinish;
+    }
     else if (**argv == '-') {
       die("Unrecognized option " + opt);
       exit(1);
@@ -236,7 +243,7 @@ void processImages(int& argc, char**& argv) {
     die(err.what());
   }
   
-  SetEnqueuesPerFinish(1000);
+  SetEnqueuesPerFinish(enqueuesPerFinish);
   
   LLInitOpParams initOpParams(Edges, 8, numCurvatures);
   shared_ptr<LLInitOps> initOps;
