@@ -1,8 +1,8 @@
 #include <sstream>
 
+#include <evp/io/imageio.hpp> // Include this first for debugging
 #include <evp.hpp>
 #include <evp/io.hpp>
-#include <evp/io/imageio.hpp>
 #include <evp/util/tictoc.hpp>
 
 using namespace std;
@@ -27,6 +27,9 @@ i32 flowRelaxIters = 10;
 
 f32 curveRelaxDelta = 1.f;
 f32 flowRelaxDelta = 1.f;
+
+bool outputMatlab = true;
+bool outputPdf = false;
 
 string outputDir;
 
@@ -55,6 +58,8 @@ void showHelp() {
 //          "relaxation. Defaults to 10.\n";
 //  cout << "  --flow-delta <d>\t Use <d> for flow relaxation delta. "
 //          "Defaults to 1.\n";
+  cout << "  --no-matlab\t\tDon't output files in MATLAB format.\n";
+  cout << "  --pdf\t\tOutput PDF files.\n";
   cout << "  --output-dir <dir>\t Use <dir> for output.\n";
   cout.flush();
 }
@@ -190,6 +195,13 @@ void processOptions(int& argc, char**& argv) {
 //      if (flowRelaxDelta <= 0)
 //        die("Invalid delta (must be > 0)");
 //    }
+    else if (opt == "--no-matlab") {
+      outputMatlab = false;
+      
+    }
+    else if (opt == "--pdf") {
+      outputPdf = true;
+    }
     else if (opt == "--output-dir") {
       --argc; ++argv; if (!argc) die("No argument supplied to --output-dir");
       outputDir = *argv;
@@ -248,10 +260,10 @@ void processImages(int& argc, char**& argv) {
   
   SetEnqueuesPerFinish(enqueuesPerFinish);
   
-  LLInitOpParams initOpParams(Edges, 8, numCurvatures);
+  LLInitOpParams initOpParams(Edges, numOrientations, numCurvatures);
   shared_ptr<LLInitOps> initOps;
   
-  RelaxCurveOpParams relaxCurveParams(Edges, 8, numCurvatures);
+  RelaxCurveOpParams relaxCurveParams(Edges, numOrientations, numCurvatures);
   shared_ptr<RelaxCurveOp> relaxCurve;
   
   i32 total = argc;
@@ -306,7 +318,7 @@ void processImages(int& argc, char**& argv) {
     
     cout << "Image " << ++soFar << "/" << total << ": " << baseName << endl;
     
-    std::string outputName;
+    std::string outputBaseName;
     
     if (runCurveInit) {
       cout << "Calculating initial estimates..." << endl;
@@ -315,8 +327,13 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
-      outputName = outputDir + "/" + baseName + "-curve-initial.mat";
-      WriteMatlabArray(*edgesData, outputName);
+      outputBaseName = outputDir + "/" + baseName + "-curve-initial";
+      
+      if (outputMatlab)
+        WriteMatlabArray(outputBaseName + ".mat", *edgesData);
+      
+      if (outputPdf)
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
     }
     
     if (runCurveRelax) {
@@ -326,8 +343,13 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
-      outputName = outputDir + "/" + baseName + "-curve-relaxed.mat";
-      WriteMatlabArray(*edgesData, outputName);
+      outputBaseName = outputDir + "/" + baseName + "-curve-relaxed.mat";
+      
+      if (outputMatlab)
+        WriteMatlabArray(outputBaseName + ".mat", *edgesData);
+      
+      if (outputPdf)
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
     }
     
     if (argc > 1)
