@@ -23,6 +23,8 @@ solution "EVP"
   
   configuration "xcode*"
     links {"OpenCL.framework"}
+
+  defines {"NO_GL_INTEROP"}
     
   files {"**.hpp", "**.cl", "premake4.lua"}
 
