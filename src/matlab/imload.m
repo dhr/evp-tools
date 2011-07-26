@@ -20,7 +20,10 @@ switch class(img)
 end
 
 img = double(img)/maxval;
-img = sum(img, 3)/size(img, 3);
+
+if (size(img, 3) == 3)
+  img = 0.212671*img(:,:,1) + 0.715160*img(:,:,2) + 0.072169*img(:,:,3);
+end
 
 function image = readpgm(filename)
 %READPGM Read a raw pgm file as a matrix
