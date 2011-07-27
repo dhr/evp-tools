@@ -1,4 +1,5 @@
 #include <sstream>
+#include <algorithm>
 
 #include <evp/io/imageio.hpp> // Include this first for debugging
 #include <evp.hpp>
@@ -9,62 +10,256 @@ using namespace std;
 using namespace std::tr1;
 using namespace evp;
 
-i32 platformNum = 0;
-i32 deviceNum = 0;
-
-i32 enqueuesPerFinish = 1000;
-
-bool runCurveInit = false;
-bool runCurveRelax = false;
-bool runFlowInit = false;
-bool runFlowRelax = false;
-
-i32 numOrientations = 8;
-i32 numCurvatures = 3;
-
-i32 curveRelaxIters = 5;
-i32 flowRelaxIters = 10;
-
-f32 curveRelaxDelta = 1.f;
-f32 flowRelaxDelta = 1.f;
-
-bool outputMatlab = true;
-bool outputPdf = false;
-
-string outputDir;
-
 void die(const string& msg) {
   cerr << "Error: " << msg << "." << endl;
   exit(1);
 }
 
-void showHelp() {
-  cout << "Usage: evp command[s] [options] images\n";
-  cout << "  list-devices\t\t List available OpenCL devices.\n";
-  cout << "  curve-init\t\t Run initial curve operators.\n";
-  cout << "  curve-relax\t\t Run curve relaxation (implies curve-init).\n";
-//  cout << "  flow-init\t\t Run initial flow operators.\n";
-//  cout << "  flow-relax\t\t Run flow relaxation (implies flow-init).\n";
-  cout << "  --help\t\t Show this help text.\n";
-  cout << "  --platform <id>\t Select platform <id>. Default is 0.\n";
-  cout << "  --device <id>\t\t Select device <id>. Default is 0.\n";
-  cout << "  --nts <n>\t\t Use <n> orientations. Defaults to 8.\n";
-  cout << "  --nks <n>\t\t Use <n> curvatures. Defaults to 3.\n";
-  cout << "  --curve-iters <n>\t Use <n> iterations for curve "
-          "relaxation. Defaults to 5.\n";
-  cout << "  --curve-delta <d>\t Use <d> for curve relaxation delta. "
-          "Defaults to 1.\n";
-//  cout << "  --flow-iters <n>\t Use <n> iterations for flow "
-//          "relaxation. Defaults to 10.\n";
-//  cout << "  --flow-delta <d>\t Use <d> for flow relaxation delta. "
-//          "Defaults to 1.\n";
-  cout << "  --no-matlab\t\tDon't output files in MATLAB format.\n";
-  cout << "  --pdf\t\tOutput PDF files.\n";
-  cout << "  --output-dir <dir>\t Use <dir> for output.\n";
-  cout.flush();
+template<typename T>
+void getArgument(int& argc, char**& argv, T* arg) {
+  --argc; ++argv;
+  if (!argc)
+    die("Argument not supplied to final option");
+  stringstream ss(*argv);
+  ss >> *arg;
 }
 
-void listDevices() {
+string listDevicesOpts[] = {"list-devices"};
+string listDevicesDesc = "List available OpenCL devices.";
+void listDevicesHandler(int&, char**&);
+
+bool runCurveInit = false;
+string curveInitOpts[] = {"curve-init"};
+string curveInitDesc = "Run initial curve operators.";
+void curveInitHandler(int&, char**&) {
+  runCurveInit = true;
+}
+
+bool runCurveRelax = false;
+string curveRelaxOpts[] = {"curve-relax"};
+string curveRelaxDesc = "Run curve relaxation (implies curve-init).";
+void curveRelaxHandler(int&, char**&) {
+  runCurveRelax = true;
+}
+
+bool runFlowInit = false;
+string flowInitOpts[] = {"flow-init"};
+string flowInitDesc = "Run initial flow operators.";
+void flowInitHandler(int&, char**&) {
+  runFlowInit = true;
+}
+
+bool runFlowRelax = false;
+string flowRelaxOpts[] = {"flow-relax"};
+string flowRelaxDesc = "Run flow relaxation operators (implies flow-init).";
+void flowRelaxHandler(int&, char**&) {
+  runFlowRelax = true;
+}
+
+string helpOpts[] = {"-h", "--help"};
+string helpDesc = "Show this help text.";
+void helpHandler(int&, char**&);
+
+i32 platformNum = 0;
+string platformOpts[] = {"-p", "--platform"};
+string platformArgs[] = {"id"};
+string platformDesc = "Select platform <id>. Default: 0.";
+void platformHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &platformNum);
+  platformNum--;
+}
+
+i32 deviceNum = -1;
+string deviceOpts[] = {"-d", "--device"};
+string deviceArgs[] = {"id"};
+string deviceDesc = "Select device <id>. Default: Default platform device.";
+void deviceHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &deviceNum);
+  deviceNum--;
+}
+
+ValueType valueType = Float32;
+string valueTypeOpts[] = {"-b", "--bit-depth"};
+string valueTypeArgs[] = {"n"};
+string valueTypeDesc = "Bits to use for image storage (16 or 32). Default: 32.";
+void valueTypeHandler(int& argc, char**& argv) {
+  i32 bits;
+  getArgument(argc, argv, &bits);
+  
+  switch (bits) {
+    case 16:
+      valueType = Float16;
+      break;
+    
+    case 32:
+      valueType = Float32;
+      break;
+      
+    default:
+      die("Invalid bit depth (should be 16 or 32)");
+  }
+}
+
+i32 enqueuesPerFinish = 1000;
+string epfOpts[] = {"--max-enqueues"};
+string epfArgs[] = {"n"};
+string epfDesc = "Let device catch up after <n> enqueues. Default: 1000.";
+void epfHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &enqueuesPerFinish);
+  if (enqueuesPerFinish <= 0)
+    die("Invalid number of enqueues per finish (must be > 0)");
+}
+
+i32 numOrientations = 8;
+string numOrientationsOpts[] = {"-t", "--orientations"};
+string numOrientationsArgs[] = {"n"};
+string numOrientationsDesc = "Use <n> orientations. Default: 8.";
+void numOrientationsHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &numOrientations);
+  if (numOrientations <= 0 || numOrientations%2 != 0)
+    die("Invalid number of orientations (must be > 0 and even)");
+}
+
+i32 numCurvatures = 3;
+string numCurvaturesOpts[] = {"-k", "--curvatures"};
+string numCurvaturesArgs[] = {"n"};
+string numCurvaturesDesc = "Use <n> curvatures. Default: 3.";
+void numCurvaturesHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &numCurvatures);
+  if (numCurvatures <= 0 || numCurvatures > 5 || numCurvatures%2 == 0)
+    die("Invalid number of curvatures (must > 0, <= 5, and odd)");
+}
+
+i32 curveIters = 5;
+string curveItersOpts[] = {"--curve-iters"};
+string curveItersArgs[] = {"n"};
+string curveItersDesc = "Use <n> iterations for curve relaxation. Default: 5.";
+void curveItersHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &curveIters);
+  if (curveIters <= 0)
+    die("Invalid number of iterations (must be > 0)");
+}
+
+f32 curveDelta = 1.f;
+string curveDeltaOpts[] = {"--curve-delta"};
+string curveDeltaArgs[] = {"d"};
+string curveDeltaDesc = "Use <d> for curve relaxation delta. Default: 1.";
+void curveDeltaHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &curveDelta);
+}
+
+i32 flowIters = 10;
+string flowItersOpts[] = {"--flow-iters"};
+string flowItersArgs[] = {"n"};
+string flowItersDesc = "Use <n> iterations for flow relaxation. Default: 10.";
+void flowItersHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &flowIters);
+  if (flowIters <= 0)
+    die("Invalid number of iterations (must be > 0)");
+}
+
+f32 flowDelta = 1.f;
+string flowDeltaOpts[] = {"--flow-delta"};
+string flowDeltaArgs[] = {"d"};
+string flowDeltaDesc = "Use <d> for flow relaxation delta. Default: 1.";
+void flowDeltaHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &curveDelta);
+}
+
+bool outputMatlab = true;
+string noMatlabOpts[] = {"--no-mat"};
+string noMatlabDesc = "Don't output in MATLAB format.";
+void noMatlabHandler(int& argc, char**& argv) {
+  outputMatlab = false;
+}
+
+bool outputPdf = false;
+string pdfOpts[] = {"--pdf"};
+string pdfDesc = "Output PDF files.";
+void pdfHandler(int& argc, char**& argv) {
+  outputPdf = true;
+}
+
+string outputDir = ".";
+string outputDirOpts[] = {"-o", "--output-dir"};
+string outputDirArgs[] = {"dir"};
+string outputDirDesc = "Write output to <dir>. Default: Current directory.";
+void outputDirHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &outputDir);
+}
+
+typedef struct OptionEntry {
+  string* opts; int nopts;
+  string* args; int nargs;
+  void (*handleOption)(int& argc, char**& argv);
+  string description;
+} OptionEntry;
+
+#define OPTION_FLAG_ENTRY(name) \
+  {name##Opts, sizeof(name##Opts)/sizeof(string), NULL, 0, \
+   &name##Handler, name##Desc}
+
+#define OPTION_ARGS_ENTRY(name) \
+  {name##Opts, sizeof(name##Opts)/sizeof(string), \
+   name##Args, sizeof(name##Args)/sizeof(string), \
+   &name##Handler, name##Desc}
+
+OptionEntry options[] = {
+  OPTION_FLAG_ENTRY(listDevices),
+  OPTION_FLAG_ENTRY(curveInit),
+  OPTION_FLAG_ENTRY(curveRelax),
+  OPTION_FLAG_ENTRY(flowInit),
+  OPTION_FLAG_ENTRY(flowRelax),
+  OPTION_FLAG_ENTRY(help),
+  OPTION_ARGS_ENTRY(platform),
+  OPTION_ARGS_ENTRY(device),
+  OPTION_ARGS_ENTRY(valueType),
+  OPTION_ARGS_ENTRY(epf),
+  OPTION_ARGS_ENTRY(numOrientations),
+  OPTION_ARGS_ENTRY(numCurvatures),
+  OPTION_ARGS_ENTRY(curveIters),
+  OPTION_ARGS_ENTRY(curveDelta),
+  OPTION_ARGS_ENTRY(flowIters),
+  OPTION_ARGS_ENTRY(flowDelta),
+  OPTION_FLAG_ENTRY(noMatlab),
+  OPTION_FLAG_ENTRY(pdf),
+  OPTION_ARGS_ENTRY(outputDir)
+};
+i32 numOptions = sizeof(options)/sizeof(OptionEntry);
+
+void helpHandler(int&, char**&) {
+  cout << "Usage: evp command[s] [options] images\n";
+  
+  i32 maxOptionLength = 0;
+  for (i32 i = 0; i < numOptions; ++i) {
+    i32 length = -1;
+    for (i32 j = 0; j < options[i].nopts; ++j)
+      length += options[i].opts[j].size() + 1;
+    for (i32 j = 0; j < options[i].nargs; ++j)
+      length += options[i].args[j].size() + 3;
+    maxOptionLength = max(maxOptionLength, length);
+  }
+  
+  for (i32 i = 0; i < numOptions; ++i) {
+    stringstream ss;
+    ss << options[i].opts[0];
+    for (i32 j = 1; j < options[i].nopts; ++j)
+      ss << "/" << options[i].opts[j];
+    for (i32 j = 0; j < options[i].nargs; ++j)
+      ss << " <" << options[i].args[j] << ">";
+    i32 size = i32(ss.tellp());
+    cout << "  " << ss.str();
+    for (i32 j = 0; j < maxOptionLength + 2 - size; ++j)
+      cout << ' ';
+    cout << options[i].description << "\n";
+  }
+  
+  cout.flush();
+  
+  exit(0);
+}
+
+void listDevicesHandler(int&, char**&) {
   vector<cl::Platform> platforms;
   cl::Platform::get(&platforms);
   
@@ -107,118 +302,32 @@ void listDevices() {
       cout << " " << d.getInfo<CL_DEVICE_NAME>().c_str() << endl;
     }
   }
+  
+  exit(0);
 }
 
 void processOptions(int& argc, char**& argv) {
   while (argc) {
     string opt(*argv);
+    bool recognized = false;
     
-    if (opt == "list-devices") {
-      listDevices();
-      exit(0);
+    for (i32 i = 0; i < numOptions; ++i) {
+      for (i32 j = 0; j < options[i].nopts; ++j) {
+        if (opt == options[i].opts[j]) {
+          options[i].handleOption(argc, argv);
+          recognized = true;
+          goto loopend;
+        }
+      }
     }
-    else if (opt == "curve-init") {
-      runCurveInit = true;
+loopend:
+
+    if (**argv != '-' && !recognized) {
+      return; // Assume we've hit filenames
     }
-    else if (opt == "curve-relax") {
-      runCurveInit = true;
-      runCurveRelax = true;
-    }
-//    else if (opt == "flow-init") {
-//      runFlowInit = true;
-//    }
-//    else if (opt == "flow-relax") {
-//      runFlowRelax = true;
-//      runFlowInit = true;
-//    }
-    else if (opt == "--help") {
-      showHelp();
-      exit(0);
-    }
-    else if (opt == "--platform") {
-      --argc; ++argv; if (!argc) die("No argument supplied to --platform");
-      stringstream ss(*argv);
-      ss >> platformNum;
-      platformNum--;
-    }
-    else if (opt == "--device") {
-      --argc; ++argv; if (!argc) die("No argument supplied to --device");
-      stringstream ss(*argv);
-      ss >> deviceNum;
-      deviceNum--;
-    }
-    else if (opt == "--nts") {
-      --argc; ++argv; if (!argc) die("No argument supplied to --nts");
-      stringstream ss(*argv);
-      ss >> numOrientations;
-      
-      if (numOrientations <= 0 || numOrientations%2 != 0)
-        die("Invalid number of orientations (must be > 0 and even)");
-    }
-    else if (opt == "--nks") {
-      --argc; ++argv; if (!argc) die("No argument supplied to --nks");
-      stringstream ss(*argv);
-      ss >> numCurvatures;
-      
-      if (numCurvatures <= 0 || numCurvatures > 5 || numCurvatures%2 == 0)
-        die("Invalid number of curvatures (must > 0, <= 5, and odd)");
-    }
-    else if (opt == "--curve-iters") {
-      --argc; ++argv; if (!argc) die("No argument supplied to --curve-iters");
-      stringstream ss(*argv);
-      ss >> curveRelaxIters;
-      
-      if (curveRelaxIters <= 0)
-        die("Invalid number of iterations (must be > 0)");
-    }
-    else if (opt == "--curve-delta") {
-      --argc; ++argv; if (!argc) die("No argument supplied to --curve-delta");
-      stringstream ss(*argv);
-      ss >> curveRelaxDelta;
-      
-      if (curveRelaxDelta <= 0)
-        die("Invalid delta (must be > 0)");
-    }
-//    else if (opt == "--flow-iters") {
-//      --argc; ++argv; if (!argc) die("No argument supplied to --flow-iters");
-//      stringstream ss(*argv);
-//      ss >> flowRelaxIters;
-//      
-//      if (flowRelaxIters <= 0)
-//        die("Invalid number of iterations (must > 0)");
-//    }
-//    else if (opt == "--flow-delta") {
-//      --argc; ++argv; if (!argc) die("No argument supplied to --flow-delta");
-//      stringstream ss(*argv);
-//      ss >> flowRelaxDelta;
-//      
-//      if (flowRelaxDelta <= 0)
-//        die("Invalid delta (must be > 0)");
-//    }
-    else if (opt == "--no-matlab") {
-      outputMatlab = false;
-      
-    }
-    else if (opt == "--pdf") {
-      outputPdf = true;
-    }
-    else if (opt == "--output-dir") {
-      --argc; ++argv; if (!argc) die("No argument supplied to --output-dir");
-      outputDir = *argv;
-    }
-    else if (opt == "--enqueues") {
-      --argc; ++argv; if (!argc) die("No argument supplied to --enqueues");
-      stringstream ss(*argv);
-      ss >> enqueuesPerFinish;
-      if (enqueuesPerFinish <= 0)
-        die("Invalid enqueues per finish (must be > 0)");
-    }
-    else if (**argv == '-') {
+    else if (!recognized) {
       die("Unrecognized option " + opt);
       exit(1);
-    }
-    else {
-      return;
     }
     
     --argc; ++argv;
@@ -250,12 +359,15 @@ void progMon(f32 progress) {
 }
 
 void processImages(int& argc, char**& argv) {
-  try {
-    ClipInit(platformNum, deviceNum, Float16);
+  if (deviceNum < 0) {
+    vector<cl::Platform> platforms;
+    vector<cl::Device> devices;
+    cl::Platform::get(&platforms);
+    platforms[0].getDevices(CL_DEVICE_TYPE_DEFAULT, &devices);
+    ClipInit(devices, valueType);
   }
-  catch (const exception& err) {
-    die(err.what());
-  }
+  else
+    ClipInit(platformNum, deviceNum, valueType);
   
   SetEnqueuesPerFinish(enqueuesPerFinish);
   
@@ -281,9 +393,6 @@ void processImages(int& argc, char**& argv) {
       imageName = imageFile.substr(lastSlash + 1);
     }
     
-    if (outputDir.length() == 0)
-      outputDir = dirName;
-    
     size_t lastDot = imageName.find_last_of('.');
     if (lastDot == string::npos || lastDot >= imageName.length() - 1)
       die("No filename extension found; unable to determine type");
@@ -299,18 +408,6 @@ void processImages(int& argc, char**& argv) {
       die(err.what());
     }
     
-    if (!initOps.get() && runCurveInit) {
-      initOps = shared_ptr<LLInitOps>(new LLInitOps(initOpParams));
-      initOps->addProgressListener(&progMon);
-    }
-    
-    if (!relaxCurve.get() && runCurveRelax) {
-      RelaxCurveOp* temp =
-        new RelaxCurveOp(relaxCurveParams, curveRelaxIters, curveRelaxDelta);
-      relaxCurve = shared_ptr<RelaxCurveOp>(temp);
-      relaxCurve->addProgressListener(&progMon);
-    }
-    
     ImageBuffer imageBuffer(imageData);
     CurveBuffersPtr edges;
     CurveDataPtr edgesData;
@@ -320,6 +417,11 @@ void processImages(int& argc, char**& argv) {
     std::string outputBaseName;
     
     if (runCurveInit) {
+      if (!initOps.get()) {
+        initOps = shared_ptr<LLInitOps>(new LLInitOps(initOpParams));
+        initOps->addProgressListener(&progMon);
+      }
+      
       cout << "Calculating initial estimates..." << endl;
       tic();
       edges = initOps->apply(imageBuffer);
@@ -334,8 +436,14 @@ void processImages(int& argc, char**& argv) {
       if (outputPdf)
         WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
     }
-    
     if (runCurveRelax) {
+      if (!relaxCurve.get()) {
+        RelaxCurveOp* temp =
+          new RelaxCurveOp(relaxCurveParams, curveIters, curveDelta);
+        relaxCurve = shared_ptr<RelaxCurveOp>(temp);
+        relaxCurve->addProgressListener(&progMon);
+      }
+      
       cout << "Relaxing..." << endl;
       tic();
       edges = relaxCurve->apply(*edges);
