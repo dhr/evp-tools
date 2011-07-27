@@ -39,6 +39,7 @@ bool runCurveRelax = false;
 string curveRelaxOpts[] = {"curve-relax"};
 string curveRelaxDesc = "Run curve relaxation (implies curve-init).";
 void curveRelaxHandler(int&, char**&) {
+  runCurveInit = true;
   runCurveRelax = true;
 }
 
@@ -53,6 +54,7 @@ bool runFlowRelax = false;
 string flowRelaxOpts[] = {"flow-relax"};
 string flowRelaxDesc = "Run flow relaxation operators (implies flow-init).";
 void flowRelaxHandler(int&, char**&) {
+  runFlowInit = true;
   runFlowRelax = true;
 }
 
