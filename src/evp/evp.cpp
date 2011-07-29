@@ -452,7 +452,7 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
-      outputBaseName = outputDir + "/" + baseName + "-curve-relaxed.mat";
+      outputBaseName = outputDir + "/" + baseName + "-curve-relaxed";
       
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
