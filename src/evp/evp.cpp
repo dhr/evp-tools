@@ -132,6 +132,26 @@ void numCurvaturesHandler(int& argc, char**& argv) {
     die("Invalid number of curvatures (must > 0, <= 5, and odd)");
 }
 
+f32 curveScale = 1.f;
+string curveScaleOpts[] = {"--curve-scale"};
+string curveScaleArgs[] = {"s"};
+string curveScaleDesc = "Scale initial curve operators by <s>. Default: 1.";
+void curveScaleHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &curveScale);
+  if (curveScale < 1)
+    die("Invalid curve scaling (must >= 1)");
+}
+
+f32 rlxThresh = 0.f;
+string rlxThreshOpts[] = {"--rlx-thresh"};
+string rlxThreshArgs[] = {"t"};
+string rlxThreshDesc = "Threshold relaxing curves with <t>. Default: 0.";
+void rlxThreshHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &rlxThresh);
+  if (rlxThresh < 0 || rlxThresh >= 1)
+    die("Invalid relaxation threshold (must be >= 0 and < 1)");
+}
+
 i32 curveIters = 5;
 string curveItersOpts[] = {"--curve-iters"};
 string curveItersArgs[] = {"n"};
@@ -219,6 +239,8 @@ OptionEntry options[] = {
   OPTION_ARGS_ENTRY(epf),
   OPTION_ARGS_ENTRY(numOrientations),
   OPTION_ARGS_ENTRY(numCurvatures),
+  OPTION_ARGS_ENTRY(curveScale),
+  OPTION_ARGS_ENTRY(rlxThresh),
   OPTION_ARGS_ENTRY(curveIters),
   OPTION_ARGS_ENTRY(curveDelta),
   OPTION_ARGS_ENTRY(flowIters),
@@ -373,11 +395,12 @@ void processImages(int& argc, char**& argv) {
   
   SetEnqueuesPerFinish(enqueuesPerFinish);
   
-  LLInitOpParams initOpParams(Edges, numOrientations, numCurvatures);
+  LLInitOpParams initOpParams(Edges, numOrientations, numCurvatures,
+                              curveScale);
   shared_ptr<LLInitOps> initOps;
   
-  RelaxCurveOpParams relaxCurveParams(Edges, numOrientations, numCurvatures);
-  shared_ptr<RelaxCurveOp> relaxCurve;
+  RelaxCurveOpParams rlxCurveParams(Edges, numOrientations, numCurvatures);
+  shared_ptr<RelaxCurveOp> rlxCurve;
   
   i32 total = argc;
   i32 soFar = 0;
@@ -439,16 +462,16 @@ void processImages(int& argc, char**& argv) {
         WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
     }
     if (runCurveRelax) {
-      if (!relaxCurve.get()) {
+      if (!rlxCurve.get()) {
         RelaxCurveOp* temp =
-          new RelaxCurveOp(relaxCurveParams, curveIters, curveDelta);
-        relaxCurve = shared_ptr<RelaxCurveOp>(temp);
-        relaxCurve->addProgressListener(&progMon);
+          new RelaxCurveOp(rlxCurveParams, curveIters, curveDelta, rlxThresh);
+        rlxCurve = shared_ptr<RelaxCurveOp>(temp);
+        rlxCurve->addProgressListener(&progMon);
       }
       
       cout << "Relaxing..." << endl;
       tic();
-      edges = relaxCurve->apply(*edges);
+      edges = rlxCurve->apply(*edges);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
