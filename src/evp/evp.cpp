@@ -139,7 +139,7 @@ string curveScaleDesc = "Scale initial curve operators by <s>. Default: 1.";
 void curveScaleHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &curveScale);
   if (curveScale < 1)
-    die("Invalid curve scaling (must >= 1)");
+    die("Invalid curve scaling (must be >= 1)");
 }
 
 f32 rlxThresh = 0.f;

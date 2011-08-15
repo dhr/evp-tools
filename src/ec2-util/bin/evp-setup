@@ -1,0 +1,120 @@
+#!/bin/bash
+
+PREMAKEURL=http://downloads.sourceforge.net/project/premake/Premake/4.3/premake-4.3-linux.tar.gz
+OPENCLURL=http://software.intel.com/file/37425
+
+have () {
+  sudo yum list installed -q $1 >/dev/null 2>&- || hash $1 2>&-
+}
+
+# Require a "package"... ok to run repeatedly for the same package
+require () {
+  case $1 in
+    inotify-tools)
+      if ! have inotifywait; then
+        echo "Installing inotify-tools..."
+        (
+          git clone -q https://github.com/rvoicilas/inotify-tools.git
+          cd inotify-tools
+          ./autogen.sh && ./configure && make && sudo make install
+          sudo mv /usr/local/bin/inotify* ~/bin
+        ) > /dev/null 2>&1
+      fi
+      ;;
+
+    premake4)
+      if ! have premake4; then
+        echo "Installing premake4..."
+        wget -nv -O premake4.tar.gz $PREMAKEURL
+        tar xf premake4.tar.gz
+        mv premake4 ~/bin
+      fi
+      ;;
+
+    opencl)
+      if [[ -d /opt/nvidia/cuda ]]; then
+        if [[ ! -f /etc/OpenCL/vendors/nvidia.icd ]]; then
+          echo "Fixing NVIDIA OpenCL installation..."
+          sudo mkdir -p /etc/OpenCL/vendors
+          sudo bash -c 'echo libcuda.so > /etc/OpenCL/vendors/nvidia.icd'
+        fi
+
+        if [[ -z $INCLUDES ]] || ! echo $INCLUDES | grep -q nvidia/cuda; then
+          export INCLUDES+=" -I/opt/nvidia/cuda/include "
+        fi
+      elif [[ ! -d /usr/include/CL ]]; then
+        echo "Installing Intel OpenCL SDK..."
+        wget -nv -O opencl.rpm $OPENCLURL
+        sudo yum localinstall -y -q --nogpgcheck opencl.rpm >&-
+      fi
+      ;;
+
+    evp-tools)
+      if [[ ! -d ~/evp-tools ]]; then
+        echo "Cloning evp-tools repository..."
+        (
+          git clone -q git://github.com/dhr/evp-tools.git
+          cd evp-tools
+          git submodule -q init
+          git submodule -q update
+        )
+      fi
+      ;;
+
+    evp)
+      echo "Building evp..."
+      (
+        cd evp-tools
+        premake4 --evp --no-jpeg gmake >&-
+        if [[ -z $DEFINES ]] || ! echo $DEFINES | grep -q NO_JPEG; then
+          export DEFINES+=" -DNO_GL_INTEROP -DEVP_NO_JPEG "
+        fi
+        make config=release64 -C build
+        if [[ ${PIPESTATUS[0]} == 0 ]]; then mv bin/evp ~/bin; fi
+      )
+      ;;
+
+    *) # Anything else...
+      if ! have $1; then
+        echo "Installing $1..."
+        sudo yum install -y -q $1
+      fi
+      ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ -f ~/keys/key ]] &&
+    ! ps aux | grep -q '[s]sh-agent'; then
+  eval $(ssh-agent)
+  ssh-add ~/keys/key
+  cat ~/keys/key.pub >> ~/.ssh/authorized_keys
+  echo "Make sure you can log into localhost."
+else
+  echo "WARNING: File not sourced. Any ssh-agent setup must be done manually."
+fi
+
+olddir=$(pwd)
+
+mkdir -p ~/setup
+cd ~/setup
+
+require git &
+require gcc-c++ &
+require make &
+require premake4 &
+require libpng-devel &
+wait
+
+(
+  require libtool
+  require inotify-tools
+) &
+
+require opencl
+require evp-tools
+require evp &
+
+wait
+
+cd $olddir
+echo "Done."
