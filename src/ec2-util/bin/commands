@@ -1,0 +1,20 @@
+#!/bin/bash
+
+if [[ $(whoami) != root ]]; then
+  echo "Wasn't run as root (sudo); can't shut down automatically." >&2
+fi
+
+cd ~/run
+
+export EVPCOPYDEST="server@dhr.dynet.com:~/Documents/Data/output-k\=1"
+evp-runpar curve-relax -k 1 images-50%
+
+export EVPCOPYDEST="server@dhr.dynet.com:~/Documents/Data/output-k\=3"
+evp-runpar curve-relax -k 3 images-50%
+
+export EVPCOPYDEST="server@dhr.dynet.com:~/Documents/Data/output-k\=5"
+evp-runpar curve-relax -k 5 images-50%
+
+if [[ -z $(who) ]]; then
+  halt
+fi
