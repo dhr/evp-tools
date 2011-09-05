@@ -1,7 +1,6 @@
 #include <string>
 #include <vector>
 
-#define NO_GL_INTEROP
 #define USE_TEXTURES 0
 
 #include <clip.hpp>
@@ -34,12 +33,12 @@
 #define OUTPUT "output/"
 #define IMAGES "images/"
 
-#define THING_TO_DO runCode()
+//#define THING_TO_DO runCode()
 //#define THING_TO_DO profileOp("filter")
 //#define THING_TO_DO testGabor()
 //#define THING_TO_DO testFlowModel()
 //#define THING_TO_DO testFlowCompatibilities()
-//#define THING_TO_DO testCurveCompatibilities()
+#define THING_TO_DO testCurveCompatibilities()
 
 #include <evp.hpp>
 #include <evp/io.hpp>
@@ -70,9 +69,11 @@ inline void getImages(const std::vector<std::string> &imNames,
 }
 
 inline void testCurveCompatibilities() {
-  RelaxCurveOpParams compatParams(Edges);
-  CurveSupportOp connections(0.f, 0.2f, compatParams);
+  RelaxCurveOpParams compatParams(Lines);
+  CurveSupportOp connections(0.f, 0.1f, compatParams);
   const NDArray<ImageData,4> &compats = connections.components();
+  WriteMatlabArray(OUTPUT "compatibilities-1.mat", compats);
+//  return;
   
   WriteCurveCompatibilitiesToPDF(OUTPUT "curve-test-compatibility.pdf",
                                  compats);
@@ -330,7 +331,7 @@ inline void runCode() {
   std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
   
   CurveDataPtr edgeCols = ReadImageDataFromBufferArray(*edges);
-  WriteMatlabArray(*edgeCols, OUTPUT "edges-initial-ops.mat");
+  WriteMatlabArray(OUTPUT "edges-initial-ops.mat", *edgeCols);
   WriteLLColumnsToPDF(OUTPUT "edges-initial-ops.pdf", *edgeCols, 0.02);
   
 #if RELAX_EDGES

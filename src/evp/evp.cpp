@@ -28,19 +28,43 @@ string listDevicesOpts[] = {"list-devices"};
 string listDevicesDesc = "List available OpenCL devices.";
 void listDevicesHandler(int&, char**&);
 
-bool runCurveInit = false;
-string curveInitOpts[] = {"curve-init"};
-string curveInitDesc = "Run initial curve operators.";
-void curveInitHandler(int&, char**&) {
-  runCurveInit = true;
+bool runEdgeInit = false;
+string edgeInitOpts[] = {"edge-init"};
+string edgeInitDesc = "Run initial edge operators.";
+void edgeInitHandler(int&, char**&) {
+  runEdgeInit = true;
 }
 
-bool runCurveRelax = false;
-string curveRelaxOpts[] = {"curve-relax"};
-string curveRelaxDesc = "Run curve relaxation (implies curve-init).";
-void curveRelaxHandler(int&, char**&) {
-  runCurveInit = true;
-  runCurveRelax = true;
+bool runEdgeRelax = false;
+string edgeRelaxOpts[] = {"edge-relax"};
+string edgeRelaxDesc = "Run edge relaxation (implies edge-init).";
+void edgeRelaxHandler(int&, char**&) {
+  runEdgeInit = true;
+  runEdgeRelax = true;
+}
+
+bool runLineInit = false;
+string lineInitOpts[] = {"line-init"};
+string lineInitDesc = "Run initial line operators.";
+void lineInitHandler(int&, char**&) {
+  runLineInit = true;
+}
+
+bool runLineRelax = false;
+string lineRelaxOpts[] = {"line-relax"};
+string lineRelaxDesc = "Run line relaxation (implies line-init).";
+void lineRelaxHandler(int&, char**&) {
+  runLineInit = true;
+  runLineRelax = true;
+}
+
+bool runEdgeSuppress = false;
+string edgeSuppressOpts[] = {"edge-suppress"};
+string edgeSuppressDesc = "Run edge suppression (implies edge- and line-init).";
+void edgeSuppressHandler(int&, char**&) {
+  runEdgeInit = true;
+  runLineInit = true;
+  runEdgeSuppress = true;
 }
 
 bool runFlowInit = false;
@@ -228,8 +252,11 @@ typedef struct OptionEntry {
 
 OptionEntry options[] = {
   OPTION_FLAG_ENTRY(listDevices),
-  OPTION_FLAG_ENTRY(curveInit),
-  OPTION_FLAG_ENTRY(curveRelax),
+  OPTION_FLAG_ENTRY(edgeInit),
+  OPTION_FLAG_ENTRY(edgeRelax),
+  OPTION_FLAG_ENTRY(lineInit),
+  OPTION_FLAG_ENTRY(lineRelax),
+  OPTION_FLAG_ENTRY(edgeSuppress),  
   OPTION_FLAG_ENTRY(flowInit),
   OPTION_FLAG_ENTRY(flowRelax),
   OPTION_FLAG_ENTRY(help),
@@ -395,12 +422,23 @@ void processImages(int& argc, char**& argv) {
   
   SetEnqueuesPerFinish(enqueuesPerFinish);
   
-  LLInitOpParams initOpParams(Edges, numOrientations, numCurvatures,
-                              curveScale);
-  shared_ptr<LLInitOps> initOps;
+  LLInitOpParams edgeInitOpParams(Edges, numOrientations, numCurvatures,
+                                  curveScale);
+  shared_ptr<LLInitOps> edgeInitOps;
   
-  RelaxCurveOpParams rlxCurveParams(Edges, numOrientations, numCurvatures);
-  shared_ptr<RelaxCurveOp> rlxCurve;
+  LLInitOpParams lineInitOpParams(Lines, numOrientations, numCurvatures,
+                                  curveScale);
+  shared_ptr<LLInitOps> lineInitOps;
+  
+  RelaxCurveOpParams edgeRlxCurveParams(Edges, numOrientations, numCurvatures);
+  shared_ptr<RelaxCurveOp> edgeRlxCurve;
+  
+  RelaxCurveOpParams lineRlxCurveParams(Lines, numOrientations, numCurvatures);
+  shared_ptr<RelaxCurveOp> lineRlxCurve;
+  
+  SuppressLineEdgesOpParams
+    suppressLineEdgesOpParams(numOrientations, numCurvatures);
+  shared_ptr<SuppressLineEdgesOp> edgeSuppressOps;
   
   i32 total = argc;
   i32 soFar = 0;
@@ -434,26 +472,26 @@ void processImages(int& argc, char**& argv) {
     }
     
     ImageBuffer imageBuffer(imageData);
-    CurveBuffersPtr edges;
-    CurveDataPtr edgesData;
+    CurveBuffersPtr edges, lines;
+    CurveDataPtr edgesData, linesData;
     
     cout << "Image " << ++soFar << "/" << total << ": " << baseName << endl;
     
     std::string outputBaseName;
     
-    if (runCurveInit) {
-      if (!initOps.get()) {
-        initOps = shared_ptr<LLInitOps>(new LLInitOps(initOpParams));
-        initOps->addProgressListener(&progMon);
+    if (runEdgeInit) {
+      if (!edgeInitOps.get()) {
+        edgeInitOps = shared_ptr<LLInitOps>(new LLInitOps(edgeInitOpParams));
+        edgeInitOps->addProgressListener(&progMon);
       }
       
-      cout << "Calculating initial estimates..." << endl;
+      cout << "Calculating initial edge estimates..." << endl;
       tic();
-      edges = initOps->apply(imageBuffer);
+      edges = edgeInitOps->apply(imageBuffer);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
-      outputBaseName = outputDir + "/" + baseName + "-curve-initial";
+      outputBaseName = outputDir + "/" + baseName + "-edge-initial";
       
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
@@ -461,21 +499,88 @@ void processImages(int& argc, char**& argv) {
       if (outputPdf)
         WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
     }
-    if (runCurveRelax) {
-      if (!rlxCurve.get()) {
+    if (runEdgeRelax) {
+      if (!edgeRlxCurve.get()) {
         RelaxCurveOp* temp =
-          new RelaxCurveOp(rlxCurveParams, curveIters, curveDelta, rlxThresh);
-        rlxCurve = shared_ptr<RelaxCurveOp>(temp);
-        rlxCurve->addProgressListener(&progMon);
+          new RelaxCurveOp(edgeRlxCurveParams, curveIters,
+                           curveDelta, rlxThresh);
+        edgeRlxCurve = shared_ptr<RelaxCurveOp>(temp);
+        edgeRlxCurve->addProgressListener(&progMon);
       }
       
-      cout << "Relaxing..." << endl;
+      cout << "Relaxing edges..." << endl;
       tic();
-      edges = rlxCurve->apply(*edges);
+      edges = edgeRlxCurve->apply(*edges);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
-      outputBaseName = outputDir + "/" + baseName + "-curve-relaxed";
+      outputBaseName = outputDir + "/" + baseName + "-edge-relaxed";
+      
+      if (outputMatlab)
+        WriteMatlabArray(outputBaseName + ".mat", *edgesData);
+      
+      if (outputPdf)
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
+    }
+    
+    if (runLineInit) {
+      if (!lineInitOps.get()) {
+        lineInitOps = shared_ptr<LLInitOps>(new LLInitOps(lineInitOpParams));
+        lineInitOps->addProgressListener(&progMon);
+      }
+      
+      cout << "Calculating initial line estimates..." << endl;
+      tic();
+      lines = lineInitOps->apply(imageBuffer);
+      cout << "Done in " << toc()/1000000.f << " seconds." << endl;
+      
+      linesData = ReadImageDataFromBufferArray(*lines);
+      outputBaseName = outputDir + "/" + baseName + "-line-initial";
+      
+      if (outputMatlab)
+        WriteMatlabArray(outputBaseName + ".mat", *linesData);
+      
+      if (outputPdf)
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData, 0.01);
+    }
+    if (runLineRelax) {
+      if (!lineRlxCurve.get()) {
+        RelaxCurveOp* temp =
+          new RelaxCurveOp(lineRlxCurveParams, curveIters,
+                           curveDelta, rlxThresh);
+        lineRlxCurve = shared_ptr<RelaxCurveOp>(temp);
+        lineRlxCurve->addProgressListener(&progMon);
+      }
+      
+      cout << "Relaxing lines..." << endl;
+      tic();
+      lines = lineRlxCurve->apply(*lines);
+      cout << "Done in " << toc()/1000000.f << " seconds." << endl;
+      
+      linesData = ReadImageDataFromBufferArray(*lines);
+      outputBaseName = outputDir + "/" + baseName + "-line-relaxed";
+      
+      if (outputMatlab)
+        WriteMatlabArray(outputBaseName + ".mat", *linesData);
+      
+      if (outputPdf)
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData, 0.01);
+    }
+    
+    if (runEdgeSuppress) {
+      if (!edgeSuppressOps.get()) {
+        edgeSuppressOps = shared_ptr<SuppressLineEdgesOp>
+          (new SuppressLineEdgesOp(suppressLineEdgesOpParams));
+        edgeSuppressOps->addProgressListener(&progMon);
+      }
+      
+      cout << "Suppressing edges around lines..." << endl;
+      tic();
+      edges = edgeSuppressOps->apply(*edges, *lines);
+      cout << "Done in " << toc()/1000000.f << " seconds." << endl;
+      
+      edgesData = ReadImageDataFromBufferArray(*edges);
+      outputBaseName = outputDir + "/" + baseName + "-edge-suppressed";
       
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
@@ -494,7 +599,9 @@ void processImages(int& argc, char**& argv) {
 int main(int argc, char** argv) {
   processOptions(--argc, ++argv);
   
-  if (!runCurveInit && !runCurveRelax && !runFlowInit && !runFlowRelax)
+  if (!runEdgeInit && !runEdgeRelax &&
+      !runLineInit && !runLineRelax &&
+      !runFlowInit && !runFlowRelax)
     die("No commands specified; use --help to see commands");
   
   if (!argc)
