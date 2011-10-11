@@ -440,6 +440,12 @@ void processImages(int& argc, char**& argv) {
     suppressLineEdgesOpParams(numOrientations, numCurvatures);
   shared_ptr<SuppressLineEdgesOp> edgeSuppressOps;
   
+  FlowInitOpParams flowInitOpParams(numOrientations, numCurvatures);
+  shared_ptr<JitteredFlowInitOps> flowInitOps;
+  
+  RelaxFlowOpParams rlxFlowParams(numOrientations, numCurvatures);
+  shared_ptr<RelaxFlowOp> rlxFlowOp;
+  
   i32 total = argc;
   i32 soFar = 0;
   while (argc > 0) {
@@ -474,6 +480,8 @@ void processImages(int& argc, char**& argv) {
     ImageBuffer imageBuffer(imageData);
     CurveBuffersPtr edges, lines;
     CurveDataPtr edgesData, linesData;
+    FlowBuffersPtr flow;
+    FlowDataPtr flowData;
     
     cout << "Image " << ++soFar << "/" << total << ": " << baseName << endl;
     
@@ -587,6 +595,50 @@ void processImages(int& argc, char**& argv) {
       
       if (outputPdf)
         WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
+    }
+    
+    if (runFlowInit) {
+      if (!flowInitOps.get()) {
+        flowInitOps = shared_ptr<JitteredFlowInitOps>
+          (new JitteredFlowInitOps(flowInitOpParams));
+        flowInitOps->addProgressListener(&progMon);
+      }
+      
+      cout << "Calculating initial flow estimates...";
+      tic();
+      flow = flowInitOps->apply(imageBuffer);
+      cout << "Done in " << toc()/1000000.f << " seconds." << endl;
+      
+      flowData = ReadImageDataFromBufferArray(*flow);
+      outputBaseName = outputDir + "/" + baseName + "-flow-initial";
+      
+      if (outputMatlab)
+        WriteMatlabArray(outputBaseName + ".mat", *flowData);
+      
+      if (outputPdf)
+        WriteFlowToPDF(outputBaseName + ".pdf", *flowData, 0.01);
+    }
+    if (runFlowRelax) {
+      if (!rlxFlowOp.get()) {
+        RelaxFlowOp* temp =
+          new RelaxFlowOp(rlxFlowParams, flowIters, flowDelta);
+        rlxFlowOp = shared_ptr<RelaxFlowOp>(temp);
+        rlxFlowOp->addProgressListener(&progMon);
+      }
+      
+      cout << "Relaxing flow..." << endl;
+      tic();
+      flow = rlxFlowOp->apply(*flow);
+      cout << "Done in " << toc()/1000000.f << " seconds." << endl;
+      
+      flowData = ReadImageDataFromBufferArray(*flow);
+      outputBaseName = outputDir + "/" + baseName + "-flow-relaxed";
+      
+      if (outputMatlab)
+        WriteMatlabArray(outputBaseName + ".mat", *flowData);
+      
+      if (outputPdf)
+        WriteFlowToPDF(outputBaseName + ".pdf", *flowData, 0.01);
     }
     
     if (argc > 1)
