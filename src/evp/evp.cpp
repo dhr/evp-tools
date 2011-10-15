@@ -419,6 +419,9 @@ void processImages(int& argc, char**& argv) {
   }
   else
     ClipInit(platformNum, deviceNum, valueType);
+    
+  typedef LLFlowInitOps InitialFlowOps;
+//  typedef JitteredFlowInitOps InitialFlowOps;
   
   SetEnqueuesPerFinish(enqueuesPerFinish);
   
@@ -441,7 +444,7 @@ void processImages(int& argc, char**& argv) {
   shared_ptr<SuppressLineEdgesOp> edgeSuppressOps;
   
   FlowInitOpParams flowInitOpParams(numOrientations, numCurvatures);
-  shared_ptr<JitteredFlowInitOps> flowInitOps;
+  shared_ptr<InitialFlowOps> flowInitOps;
   
   RelaxFlowOpParams rlxFlowParams(numOrientations, numCurvatures);
   shared_ptr<RelaxFlowOp> rlxFlowOp;
@@ -599,12 +602,12 @@ void processImages(int& argc, char**& argv) {
     
     if (runFlowInit) {
       if (!flowInitOps.get()) {
-        flowInitOps = shared_ptr<JitteredFlowInitOps>
-          (new JitteredFlowInitOps(flowInitOpParams));
+        flowInitOps = shared_ptr<InitialFlowOps>
+          (new InitialFlowOps(flowInitOpParams));
         flowInitOps->addProgressListener(&progMon);
       }
       
-      cout << "Calculating initial flow estimates...";
+      cout << "Calculating initial flow estimates..." << endl;
       tic();
       flow = flowInitOps->apply(imageBuffer);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
