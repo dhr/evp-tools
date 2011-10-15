@@ -1,0 +1,26 @@
+#!/bin/bash
+
+dir=$1
+matchexpr=$2
+cmd=$3
+
+fifo=$(mktemp -u -t fifo.XXXXXX)
+mkfifo $fifo
+inotifywait -q -m -e close_write --format "%f" $dir > $fifo &
+inotifypid=$!
+
+trap 'kill $inotifypid > /dev/null 2>&1' INT TERM EXIT
+
+(
+  cat $fifo | while read file; do
+    if [[ $file =~ $matchexpr ]]; then
+      FILEPATH=$dir/$file
+      eval $cmd
+    fi
+  done
+) &
+bgprocid=$!
+
+# Now wait until we stop getting traps and the bg proc above actually exits
+status=129
+while (($status > 128)); do wait $bgprocid; status=$?; done

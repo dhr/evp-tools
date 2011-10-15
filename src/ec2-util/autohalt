@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [[ $(whoami) != root ]]; then
+  echo "Wasn't run as root (sudo); can't shut down automatically." >&2
+fi
+
+$1
+
+if [[ -z $(who) ]]; then
+  halt
+fi

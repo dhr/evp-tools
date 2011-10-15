@@ -1,0 +1,11 @@
+#!/bin/bash
+
+prevdir=$(pwd)
+sudo su
+export HOME=/home/ec2-user
+export PATH=$PATH:$HOME/bin
+
+eval $(ssh-agent)
+ssh-add ~/keys/key
+
+nohup autohalt commands &
