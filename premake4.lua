@@ -124,6 +124,8 @@ solution "EVP"
       targetdir "bin/matlab"
       targetextension (".mex" .. archname)
 
+      defines {"EVP_NO_JPEG", "EVP_NO_PNG"}
+
       files {"src/matlab/evp.cpp"}
 
       includedirs {"deps/clip/include", "deps/evp/include"}
