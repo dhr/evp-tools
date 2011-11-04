@@ -3,10 +3,9 @@
 #include <map>
 #include <sstream>
 
-#define NO_GL_INTEROP
-
 #include <evp.hpp>
 #include <evp/io.hpp>
+#include <evp/io/imageio.hpp>
 
 using namespace std;
 using namespace std::tr1;
@@ -229,10 +228,9 @@ void initCommands(map< string,
     shared_ptr<MatlabCommand>(new RelaxEdgesCommand());
   commands["lllines"].first =
     shared_ptr<MatlabCommand>(new LLLinesCommand());
-  commands["relaxedges"].first =
+  commands["relaxlines"].first =
     shared_ptr<MatlabCommand>(new RelaxLinesCommand());
 }
-
 
 inline void openCLNotificationHandler(const char *errInfo,
                                       const void *, size_t, void *) {
@@ -256,14 +254,14 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
   --nrhs; ++prhs;
   try {
     if (commandName == "cpu") {
-      ClipInit(CPU, Float16, Float32, openCLNotificationHandler);
+      ClipInit(CPU, Float32, Float32, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
     }
     
     if (commandName == "gpu") {
-      ClipInit(GPU, Float16, Float32, openCLNotificationHandler);
+      ClipInit(GPU, Float32, Float32, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
@@ -285,9 +283,10 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
         ClipInit(GPU, imValType, filtValType, openCLNotificationHandler);
         initCommands(commands);
       }
-      else
+      else {
         ClipInit(CurrentDevice(), imValType, filtValType,
                  openCLNotificationHandler);
+      }
       
       initialized = true;
       return;
@@ -358,7 +357,7 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
       if (deviceIndex < 0 || deviceIndex >= i32(devices.size()))
         mexErrMsgTxt("Invalid device index.");
       
-      ClipInit(devices[deviceIndex], Float16, Float32,
+      ClipInit(devices[deviceIndex], Float32, Float32,
                openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
@@ -366,7 +365,7 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
     }
     
     if (!initialized) {
-      ClipInit(GPU, Float16, Float32, openCLNotificationHandler);
+      ClipInit(GPU, Float32, Float32, openCLNotificationHandler);
       initCommands(commands);
       initialized = true;
     }
