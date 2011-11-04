@@ -8,32 +8,12 @@
 #define NUM_THETAS 8
 #define NUM_CURVS 1
 
-#define DO_LINES 0
-#define RELAX_LINES 0
-#define LINE_ITERATIONS 3
-#define LINE_DELTA 1
-
-#define DO_EDGES 1
-#define RELAX_EDGES 0
-#define EDGE_ITERATIONS 2
-#define EDGE_DELTA 1
-
-#define DO_FLOW 0
-#define WRITE_INITIAL_FLOW 1
-#define MANUAL_CURVATURES 0
-#define RELAX_FLOW 1
-#define FLOW_ITERATIONS 10
-#define FLOW_DELTA 1
-
-#define IMAGE "spider.jpg"
-#define IMAGE2 "paolina.jpg"
-//#define IMAGE "leaves.jpg"
-//#define IMAGE2 "ocean-wave.jpg"
+#define IMAGE1 "leaves.jpg"
+#define IMAGE2 "ocean-wave.jpg"
 
 #define OUTPUT "output/"
 #define IMAGES "images/"
 
-//#define THING_TO_DO runCode()
 //#define THING_TO_DO profileOp("filter")
 //#define THING_TO_DO testGabor()
 //#define THING_TO_DO testFlowModel()
@@ -69,14 +49,14 @@ inline void getImages(const std::vector<std::string> &imNames,
 }
 
 inline void testCurveCompatibilities() {
-  RelaxCurveOpParams compatParams(Lines);
+  RelaxCurveOpParams compatParams(Edges);
   CurveSupportOp connections(0.f, 0.1f, compatParams);
   const NDArray<ImageData,4> &compats = connections.components();
   WriteMatlabArray(OUTPUT "compatibilities-1.mat", compats);
 //  return;
   
   WriteCurveCompatibilitiesToPDF(OUTPUT "curve-test-compatibility.pdf",
-                                 compats);
+                                 compats, compatParams.piSymmetric());
   
   ImageData reduction(compats(0, 0, 0, 0).width(),
                       compats(0, 0, 0, 0).height());
@@ -241,171 +221,6 @@ inline void makePerfectRotationalFlow(FlowInitOpParams& initFlowParams,
   }
 }
 
-void progMon(f32 progress) {
-  static f32 last = 0;
-  i32 tot = 35;
-  
-  if (last == 0) {
-    for (i32 i = 0; i < tot; ++i)
-      std::cout << "_";
-    std::cout << "\n";
-  }
-  
-  i32 n = i32(progress*tot) - i32(last*tot);
-  for (i32 i = 0; i < n; ++i)
-    std::cout << '^';
-  
-  if (progress == 1) {
-    last = 0;
-    std::cout << "\n";
-  }
-  else
-    last = progress;
-  
-  std::cout.flush();
-}
-
-inline void runCode() {
-  ClipInit(clip::GPU);
-  
-  std::vector<std::string> imNames;
-  imNames.push_back(IMAGE);
-  ImageBuffer imBuf;
-  getImages(imNames, &imBuf);
-  
-  unsigned numThetas = NUM_THETAS;
-  unsigned numCurvs = NUM_CURVS;
-  
-  CurveBuffersPtr lines(new CurveBuffers(2*numThetas, numCurvs));
-  CurveBuffersPtr edges(new CurveBuffers(2*numThetas, numCurvs));
-  FlowBuffersPtr flow(new FlowBuffers(numThetas, numCurvs, numCurvs));
-  
-#if DO_LINES
-  NDArray<ImageData,2> lineCols(2*numThetas, numCurvs);
-  
-  tic();
-  std::cout << "Constructing initial line operators..." << std::endl;
-  LLInitOpParams initLineParams(Lines, numThetas, numCurvs);
-  LLInitOps initLineOps(initLineParams);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  tic();
-  std::cout << "Applying line operators to image..." << std::endl;
-  lines = initLineOps.apply(imBuf);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  CurveDataPtr lineCols = ReadImageDataFromBufferArray(*lines);
-  WriteMatlabArray(*lineCols, OUTPUT "lines-initial-ops.mat");
-  WriteLLColumnsToPDF(OUTPUT "lines-initial-ops.pdf", *lineCols, 0.01);
-  
-#if RELAX_LINES
-  tic();
-  std::cout << "Constructing line compatibilities..." << std::endl;
-  RelaxCurveOpParams lineCompatParams(Lines, numThetas, numCurvs);
-  RelaxCurveOp lineCompatOps(lineCompatParams, LINE_ITERATIONS, LINE_DELTA);
-  lineCompatOps.initialize();
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  tic();
-  std::cout << "Relaxing lines..." << std::endl;
-  lines = lineCompatOps.apply(*lines);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  lineCols = ReadImageDataFromBufferArray(*lines);
-  WriteMatlabArray(*lineCols, OUTPUT "lines-relaxed.mat");
-  WriteLLColumnsToPDF(OUTPUT "lines-relaxed.pdf", lineCols, 0.01);
-#endif
-#endif
-  
-#if DO_EDGES
-  tic();
-  std::cout << "Constructing initial edge operators..." << std::endl;
-  LLInitOpParams initEdgeParams(Edges, numThetas, numCurvs);
-  LLInitOps initEdgeOps(initEdgeParams);
-  initEdgeOps.addProgressListener(progMon);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  tic();
-  std::cout << "Applying edge operators to image..." << std::endl;
-  edges = initEdgeOps.apply(imBuf);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  CurveDataPtr edgeCols = ReadImageDataFromBufferArray(*edges);
-  WriteMatlabArray(OUTPUT "edges-initial-ops.mat", *edgeCols);
-  WriteLLColumnsToPDF(OUTPUT "edges-initial-ops.pdf", *edgeCols, 0.02);
-  
-#if RELAX_EDGES
-  tic();
-  std::cout << "Constructing edge compatibilities..." << std::endl;
-  RelaxCurveOpParams edgeCompatParams(Edges, numThetas, numCurvs);
-  RelaxCurveOp edgeCompatOps(edgeCompatParams, EDGE_ITERATIONS, EDGE_DELTA);
-  edgeCompatOps.addProgressListener(progMon);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  tic();
-  std::cout << "Relaxing edges..." << std::endl;
-  edges = edgeCompatOps.apply(*edges);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  edgeCols = ReadImageDataFromBufferArray(*edges);
-  WriteMatlabArray(*edgeCols, OUTPUT "edges-relaxed.mat");
-  WriteLLColumnsToPDF(OUTPUT "edges-relaxed.pdf", *edgeCols, 0.01);
-#endif
-#endif
-
-#if DO_FLOW
-  NDArray<ImageData,3> flowCols(numThetas, numCurvs, numCurvs);
-  
-  tic();
-  std::cout << "Constructing initial flow operators..." << std::endl;
-  FlowInitOpParams initFlowParams(numThetas, numCurvs);
-//  JitteredFlowInitOps initFlowOps(initFlowParams);
-  FlowInitOps initFlowOps(initFlowParams);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  tic();
-  std::cout << "Applying initial flow operators to image..." << std::endl;
-  initFlowOps.apply(imBuf, flow);
-  CurrentQueue().finish();
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-#if MANUAL_CURVATURES
-  ReadImageDataFromBufferArray(flow, flowCols);
-//  enforceRotationalCurvatures(initFlowParams, flowCols);
-  makePerfectRotationalFlow(initFlowParams, flowCols);
-  WriteImageDataToBufferArray(flowCols, flow);
-#endif
-  
-#if WRITE_INITIAL_FLOW
-  CurveDataPtr flowCols = ReadImageDataFromBufferArray(*flow);
-  WriteMatlabArray(*flowCols, OUTPUT "flow-initial-ops.mat");
-  WriteFlowToPDF(OUTPUT "flow-initial-ops.pdf", *flowCols);
-#endif
-
-#if RELAX_FLOW
-  tic();
-  std::cout << "Constructing flow compatibilities..." << std::endl;
-  RelaxFlowOpParams relaxFlowParams(numThetas, numCurvs);
-#if MANUAL_CURVATURES
-  relaxFlowParams.minSupport = 0.2;
-  relaxFlowParams.inhRatio = 10;
-#endif
-  RelaxFlowOp relaxFlow(relaxFlowParams, FLOW_ITERATIONS, FLOW_DELTA);
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  tic();
-  std::cout << "Relaxing flow..." << std::endl;
-  relaxFlow.apply(flow, flow);
-  CurrentQueue().finish();
-  std::cout << "Done in " << toc()/1000.f << " milliseconds.\n" << std::endl;
-  
-  flowCols = ReadImageDataFromBufferArray(flow);
-  WriteMatlabArray(*flowCols, OUTPUT "flow-relaxed.mat");
-  WriteFlowToPDF(OUTPUT "flow-relaxed.pdf", *flowCols);
-#endif
-#endif
-}
-
 void testSimpleOp(cl::Kernel &test,
                   ImageBuffer im1Buf, ImageBuffer im2Buf,
                   ImageBuffer output, cl::Event &event) {
@@ -483,7 +298,7 @@ void profileOp(std::string kernelName) {
   ClipInit(clip::GPU);
   
   std::vector<std::string> imNames;
-  imNames.push_back(IMAGE);
+  imNames.push_back(IMAGE1);
   imNames.push_back(IMAGE2);
   ImageBuffer imBufs[2];
   getImages(imNames, imBufs);
