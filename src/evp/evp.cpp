@@ -234,6 +234,14 @@ void outputDirHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &outputDir);
 }
 
+f32 pdfThresh = 0.01f;
+string pdfThreshOpts[] = {"--pdf-thresh"};
+string pdfThreshArgs[] = {"t"};
+string pdfThreshDesc = "Use <t> for flow relaxation delta. Default: 0.01.";
+void pdfThreshHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &pdfThresh);
+}
+
 typedef struct OptionEntry {
   string* opts; int nopts;
   string* args; int nargs;
@@ -274,6 +282,7 @@ OptionEntry options[] = {
   OPTION_ARGS_ENTRY(flowDelta),
   OPTION_FLAG_ENTRY(noMatlab),
   OPTION_FLAG_ENTRY(pdf),
+  OPTION_ARGS_ENTRY(pdfThresh),
   OPTION_ARGS_ENTRY(outputDir)
 };
 i32 numOptions = sizeof(options)/sizeof(OptionEntry);
@@ -420,8 +429,9 @@ void processImages(int& argc, char**& argv) {
   else
     ClipInit(platformNum, deviceNum, valueType);
     
-  typedef LLFlowInitOps InitialFlowOps;
-//  typedef JitteredFlowInitOps InitialFlowOps;
+//  typedef LLFlowInitOps InitialFlowOps;
+  typedef JitteredFlowInitOps InitialFlowOps;
+//  typedef FlowInitOps InitialFlowOps;
   
   SetEnqueuesPerFinish(enqueuesPerFinish);
   
@@ -508,7 +518,7 @@ void processImages(int& argc, char**& argv) {
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
       
       if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, pdfThresh);
     }
     if (runEdgeRelax) {
       if (!edgeRlxCurve.get()) {
@@ -531,7 +541,7 @@ void processImages(int& argc, char**& argv) {
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
       
       if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, pdfThresh);
     }
     
     if (runLineInit) {
@@ -552,7 +562,7 @@ void processImages(int& argc, char**& argv) {
         WriteMatlabArray(outputBaseName + ".mat", *linesData);
       
       if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData, 0.01);
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData, pdfThresh);
     }
     if (runLineRelax) {
       if (!lineRlxCurve.get()) {
@@ -575,7 +585,7 @@ void processImages(int& argc, char**& argv) {
         WriteMatlabArray(outputBaseName + ".mat", *linesData);
       
       if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData, 0.01);
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData, pdfThresh);
     }
     
     if (runEdgeSuppress) {
@@ -597,7 +607,7 @@ void processImages(int& argc, char**& argv) {
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
       
       if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, 0.01);
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, pdfThresh);
     }
     
     if (runFlowInit) {
@@ -619,7 +629,7 @@ void processImages(int& argc, char**& argv) {
         WriteMatlabArray(outputBaseName + ".mat", *flowData);
       
       if (outputPdf)
-        WriteFlowToPDF(outputBaseName + ".pdf", *flowData, 0.01);
+        WriteFlowToPDF(outputBaseName + ".pdf", *flowData, pdfThresh);
     }
     if (runFlowRelax) {
       if (!rlxFlowOp.get()) {
@@ -641,7 +651,7 @@ void processImages(int& argc, char**& argv) {
         WriteMatlabArray(outputBaseName + ".mat", *flowData);
       
       if (outputPdf)
-        WriteFlowToPDF(outputBaseName + ".pdf", *flowData, 0.01);
+        WriteFlowToPDF(outputBaseName + ".pdf", *flowData, pdfThresh);
     }
     
     if (argc > 1)
