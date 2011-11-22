@@ -27,6 +27,15 @@ solution "EVP"
   defines {"NO_GL_INTEROP"}
     
   files {"**.hpp", "**.cl", "premake4.lua"}
+  
+  dofile("embed.lua")
+  newaction {
+    trigger = "embed",
+    description = "Stringify OpenCL code",
+    execute = doembed
+  }
+  
+  prebuildcommands {"premake4 embed"}
 
   newoption {
     trigger = "arch",
@@ -67,34 +76,27 @@ solution "EVP"
 
   -- The EVP command line tool
 
-  newoption {
-    trigger = "evp",
-    description = "Generate build files for the EVP command line tool"
-  }
+  project "evp"
+    kind "ConsoleApp"
+    language "C++"
 
-  if _OPTIONS["evp"] or _OPTIONS["all"] then
-    project "evp"
-      kind "ConsoleApp"
-      language "C++"
+    targetname "evp"
 
-      targetname "evp"
+    includedirs {"deps/clip/include", "deps/evp/include"}
 
-      includedirs {"deps/clip/include", "deps/evp/include"}
+    files {"src/evp/evp.cpp"}
 
-      files {"src/evp/evp.cpp"}
+    if not _OPTIONS["no-jpeg"] then
+      links {"jpeg"}
+    end
 
-      if not _OPTIONS["no-jpeg"] then
-        links {"jpeg"}
-      end
+    if not _OPTIONS["no-png"] then
+      links {"png"}
 
-      if not _OPTIONS["no-png"] then
-        links {"png"}
-
-        configuration "macosx"
-          includedirs {"/usr/X11/include"}
-          libdirs {"/usr/X11/lib"}
-      end
-  end
+      configuration "macosx"
+        includedirs {"/usr/X11/include"}
+        libdirs {"/usr/X11/lib"}
+    end
 
   -- Building MATLAB mex files
 
@@ -104,7 +106,7 @@ solution "EVP"
     description = "Path to MATLAB root directory ('matlabroot' in MATLAB)"
   }
 
-  if _OPTIONS["matlabroot"] or _OPTIONS["all"] then
+  if _OPTIONS["matlabroot"] then
     project "evpmex"
       kind "SharedLib"
       language "C++"
@@ -161,7 +163,7 @@ solution "EVP"
     description = "Generate build files to build the test-harness code"
   }
 
-  if _OPTIONS["test"] or _OPTIONS["all"] then
+  if _OPTIONS["test"] then
     project "test"
       kind "ConsoleApp"
       language "C++"
@@ -184,15 +186,13 @@ solution "EVP"
       end
   end
 
-  if not _OPTIONS["help"] and
-     -- not _OPTIONS["all"] and
-     not _OPTIONS["test-harness"] and
-     not _OPTIONS["matlabroot"] and
-     not _OPTIONS["evp"] then
-    print "No build files were produced because no relevant options were given."
-    print "Use '--matlabroot=<path>' to generate build files for the MATLAB bindings."
-    print "Use '--test' to generate build files for the test harness."
-    print "Use '--evp' to generate build files for the EVP command line tool."
-    -- print "Use '--all' to generate build files for all of the above."
-    os.exit()
-  end
+--  if not _OPTIONS["help"] and
+--     not _OPTIONS["test-harness"] and
+--     not _OPTIONS["matlabroot"] and
+--    print "No build files were produced because no relevant options were given."
+--    print "Use '--matlabroot=<path>' to generate build files for the MATLAB bindings."
+--    print "Use '--test' to generate build files for the test harness."
+--    print "Use '--evp' to generate build files for the EVP command line tool."
+--    print "Use the 'embed' action to stringify OpenCL code."
+--    os.exit()
+--  end
