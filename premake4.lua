@@ -35,7 +35,7 @@ solution "EVP"
     execute = doembed
   }
   
-  prebuildcommands {"premake4 embed"}
+prebuildcommands {"cd ..; /usr/local/bin/premake4 embed"}
 
   newoption {
     trigger = "arch",

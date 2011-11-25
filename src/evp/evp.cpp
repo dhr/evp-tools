@@ -419,15 +419,18 @@ void progMon(f32 progress) {
 }
 
 void processImages(int& argc, char**& argv) {
+  ProgramSettings settings = CLIP_DEFAULT_PROGRAM_SETTINGS;
+  settings.memoryValueType = valueType;
+  
   if (deviceNum < 0) {
     vector<cl::Platform> platforms;
     vector<cl::Device> devices;
     cl::Platform::get(&platforms);
     platforms[0].getDevices(CL_DEVICE_TYPE_DEFAULT, &devices);
-    ClipInit(devices, valueType);
+    ClipInit(devices, settings);
   }
   else
-    ClipInit(platformNum, deviceNum, valueType);
+    ClipInit(platformNum, deviceNum, settings);
     
 //  typedef LLFlowInitOps InitialFlowOps;
   typedef JitteredFlowInitOps InitialFlowOps;

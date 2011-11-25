@@ -1,29 +1,31 @@
 #include <string>
 #include <vector>
 
-#define USE_TEXTURES 0
+#define CLIP_ENABLE_PROFILING 1
+#define CLIP_DEFAULT_PROGRAM_SETTINGS \
+  ProgramSettings(4, Float32, Float32, Texture)
+#define TEST_DEVICE_TYPE GPU
 
 #include <clip.hpp>
-
-#define NUM_THETAS 8
-#define NUM_CURVS 1
-
-#define IMAGE1 "leaves.jpg"
-#define IMAGE2 "ocean-wave.jpg"
-
-#define OUTPUT "output/"
-#define IMAGES "images/"
-
-//#define THING_TO_DO profileOp("filter")
-//#define THING_TO_DO testGabor()
-//#define THING_TO_DO testFlowModel()
-//#define THING_TO_DO testFlowCompatibilities()
-#define THING_TO_DO testCurveCompatibilities()
-
 #include <evp.hpp>
 #include <evp/io.hpp>
 #include <evp/io/imageio.hpp>
 #include <evp/util/tictoc.hpp>
+
+#define NUM_THETAS 8
+#define NUM_CURVS 1
+
+#define IMAGE1 "raven.jpg"
+#define IMAGE2 "camera.jpg"
+
+#define OUTPUT "output/"
+#define IMAGES "images/"
+
+#define THING_TO_DO profileOp()
+//#define THING_TO_DO testGabor()
+//#define THING_TO_DO testFlowModel()
+//#define THING_TO_DO testFlowCompatibilities()
+//#define THING_TO_DO testCurveCompatibilities()
 
 using namespace clip;
 using namespace evp;
@@ -33,18 +35,9 @@ inline void getImages(const std::vector<std::string> &imNames,
   std::vector<std::string>::const_iterator it;
   for (it = imNames.begin(); it != imNames.end(); ++it, ++imBufs) {
     ImageData image;
-    if (!ReadJpeg(IMAGES + *it, image)) {
-      std::cerr << "Error reading image file!" << std::endl;
-      exit(1);
-    }
+    ReadImage(IMAGES + *it, image);
     
-#if !USE_TEXTURES && !USE_CPU
     *imBufs = ImageBuffer(image);
-#elif !USE_CPU
-    *imBufs = ImageBuffer(image, 4, 1);
-#else
-    *imBufs = ImageBuffer(image, 1, 1);
-#endif
   }
 }
 
@@ -179,7 +172,7 @@ inline void enforceRotationalCurvatures(const FlowInitOpParams& initFlowParams,
 }
 
 inline void makePerfectRotationalFlow(FlowInitOpParams& initFlowParams,
-                               NDArray<ImageData,3>& flowCols) {
+                                      NDArray<ImageData,3>& flowCols) {
   float width = flowCols[0].width();
   float height = flowCols[1].width();
   float xc = (width - 1)/2;
@@ -221,112 +214,29 @@ inline void makePerfectRotationalFlow(FlowInitOpParams& initFlowParams,
   }
 }
 
-void testSimpleOp(cl::Kernel &test,
-                  ImageBuffer im1Buf, ImageBuffer im2Buf,
-                  ImageBuffer output, cl::Event &event) {
-  cl::KernelFunctor testFunctor = test.bind(CurrentQueue(), im1Buf.offset(),
-      im1Buf.itemRange(), im1Buf.groupRange());
-  
-  event = testFunctor(im1Buf.mem(), im2Buf.mem(), output.mem());
-  
-  event.wait();
-}
-
-void testFilter(cl::Kernel &filter, ImageBuffer im1Buf, ImageBuffer output,
-                cl::Event &event) {
-//  srand(4);
-  ImageData kernel = MakeGabor(M_PI*3/8, 4, 0, 4, 1.5);
-//  ImageData kernel(fsize, fsize);
-//  for (int y = 0; y < fsize; ++y) {
-//    for (int x = 0; x < fsize; ++x) {
-//      kernel(x, y) = Gaussian(x - fsize/2, sqrt(2.f), false)*
-//                              DGaussian(y - fsize/2, sqrt(2.f), 1);
-////      kernel(x, y) = rand();
-//    }
-//  }
-  kernel.balance().normalize();
-  
-#if 0
-  ImageBuffer kernBuf(kernel, CurrentFilterValueType(), 4, 1, Texture);
-#else
-  ImageBuffer kernBuf(kernel, CurrentFilterValueType(), 4, 1, Global);
-#endif
-  
-  int nElems = 1 ? 1 : 4;
-  int wgWidth = 1 ? 1 : 16;
-  int wgHeight = 1 ? 1 : 16;
-  
-  cl::NDRange wkItmRange(im1Buf.paddedWidth()/nElems, im1Buf.paddedHeight());
-  cl::NDRange wkGrpRange(wgWidth, wgHeight);
-  
-  cl::KernelFunctor filterFunctor =
-    filter.bind(CurrentQueue(), cl::NullRange, wkItmRange, wkGrpRange);
-  
-#if !USE_TEXTURES && !USE_CPU
-  int fsize = 19;
-  int halfKernWidth = kernBuf.paddedWidth()/2;
-  int apronRem = halfKernWidth%4;
-  int apronWidth = halfKernWidth + (apronRem ? 4 - apronRem : 0);
-  cl::LocalSpaceArg imCacheSize = {(4*wgWidth + 2*apronWidth)*
-                                   (wgHeight + 2*(fsize/2) - !(fsize%2))*
-                                   sizeof(float)};
-  cl::LocalSpaceArg filtCacheSize = {kernBuf.paddedWidth()*
-                                     kernBuf.paddedHeight()*sizeof(float)};
-//  cl::LocalSpaceArg filtCacheSize = {1};
-#elif 0
-  cl::LocalSpaceArg imCacheSize = {(4*wgWidth + 2*(fsize/2))*
-                                   (wgHeight + 2*(fsize/2) - !(fsize%2))*
-                                   sizeof(float)};
-#endif
-  
-  event = filterFunctor(im1Buf.mem(),
-#if !USE_TEXTURES && !USE_CPU
-                        imCacheSize,
-#endif
-                        kernBuf.mem(),
-#if !USE_TEXTURES && !USE_CPU
-                        filtCacheSize,
-#endif
-                        kernBuf.paddedWidth(),
-                        kernBuf.paddedHeight(),
-                        output.mem());
-  
-  event.wait();
-}
-
-void profileOp(std::string kernelName) {
-  ClipInit(clip::GPU);
+void profileOp() {
+  ClipInit(TEST_DEVICE_TYPE);
   
   std::vector<std::string> imNames;
   imNames.push_back(IMAGE1);
   imNames.push_back(IMAGE2);
+  
   ImageBuffer imBufs[2];
   getImages(imNames, imBufs);
   
-  ImageBuffer output(imBufs[0].width(), imBufs[0].height(),
-                     CurrentImBufValueType(),
-                     imBufs[0].xAlign(), imBufs[0].yAlign());
+  ImageBuffer output = ~imBufs[0];
   
-  cl::Event event;
+  ImageData kernel = MakeGabor(M_PI/3, 4, 0, 4, 1.5);
+  Filter(imBufs[0], kernel, output);
+
+//  LLAnd(imBufs[0], imBufs[1], 16, false, 1.f, output);
   
-  cl::Kernel kernel = GetKernel(kernelName.c_str());
-  if (kernelName == "filter") {
-    testFilter(kernel, imBufs[0], output, event);
-  } else {
-    testSimpleOp(kernel, imBufs[0], imBufs[1], output, event);
-  }
-  
-//  long startTime, endTime;
-//  startTime = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
-//  endTime = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-//  
-//  std::cout << "Done in " << (endTime - startTime)/1000000.f << " "
-//            << "milliseconds.\n" << std::endl;
+  std::cout << "Done in " << LastEventTiming()/1000000.f << " "
+            << "milliseconds.\n" << std::endl;
   
   ImageData outputData = output.fetchData();
   
   WriteJpeg(OUTPUT "profile-output.jpg", outputData, true);
-  WriteCSV(OUTPUT "profile-output.csv", outputData);
 }
 
 int main(i32, char *const []) {
