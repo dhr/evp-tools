@@ -126,6 +126,24 @@ void valueTypeHandler(int& argc, char**& argv) {
   }
 }
 
+ImageBufferType bufferType = Texture;
+string bufferTypeOpts[] = {"--buf-type"};
+string bufferTypeArgs[] = {"n"};
+string bufferTypeDesc = "Buffer type ('Global' or default of 'Texture').";
+void bufferTypeHandler(int& argc, char**& argv) {
+  string name, name0;
+  getArgument(argc, argv, &name0);
+  name.resize(name0.length());
+  transform(name.begin(), name.end(), name.begin(), ::tolower);
+  
+  if (name == "global")
+    bufferType = Global;
+  else if (name == "texture")
+    bufferType = Texture;
+  else
+    die("Invalid storage type " + name0 + ", should be 'Global' or 'Texture'");
+}
+
 i32 enqueuesPerFinish = 1000;
 string epfOpts[] = {"--max-enqueues"};
 string epfArgs[] = {"n"};
@@ -226,6 +244,17 @@ void pdfHandler(int& argc, char**& argv) {
   outputPdf = true;
 }
 
+f32 pdfDarken = 1; // This confusingly is the value for no darkening...
+string pdfDarkenOpts[] = {"--pdf-darken"};
+string pdfDarkenArgs[] = {"d"};
+string pdfDarkenDesc = "Darken PDF by amount <d>.";
+void pdfDarkenHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &pdfDarken);
+  if (pdfDarken < 0 || pdfDarken > 1)
+    die("Darkening parameter must be between in range [0, 1]."); 
+  pdfDarken = 1 - pdfDarken;
+}
+
 string outputDir = ".";
 string outputDirOpts[] = {"-o", "--output-dir"};
 string outputDirArgs[] = {"dir"};
@@ -264,13 +293,14 @@ OptionEntry options[] = {
   OPTION_FLAG_ENTRY(edgeRelax),
   OPTION_FLAG_ENTRY(lineInit),
   OPTION_FLAG_ENTRY(lineRelax),
-  OPTION_FLAG_ENTRY(edgeSuppress),  
+  OPTION_FLAG_ENTRY(edgeSuppress),
   OPTION_FLAG_ENTRY(flowInit),
   OPTION_FLAG_ENTRY(flowRelax),
   OPTION_FLAG_ENTRY(help),
   OPTION_ARGS_ENTRY(platform),
   OPTION_ARGS_ENTRY(device),
   OPTION_ARGS_ENTRY(valueType),
+  OPTION_ARGS_ENTRY(bufferType),
   OPTION_ARGS_ENTRY(epf),
   OPTION_ARGS_ENTRY(numOrientations),
   OPTION_ARGS_ENTRY(numCurvatures),
@@ -283,6 +313,7 @@ OptionEntry options[] = {
   OPTION_FLAG_ENTRY(noMatlab),
   OPTION_FLAG_ENTRY(pdf),
   OPTION_ARGS_ENTRY(pdfThresh),
+  OPTION_ARGS_ENTRY(pdfDarken),
   OPTION_ARGS_ENTRY(outputDir)
 };
 i32 numOptions = sizeof(options)/sizeof(OptionEntry);
@@ -394,33 +425,10 @@ loopend:
   }
 }
 
-void progMon(f32 progress) {
-  static f32 last = 0;
-  i32 tot = 35;
-  
-  if (last == 0) {
-    for (i32 i = 0; i < tot; ++i)
-      cout << "_";
-    cout << "\n";
-  }
-  
-  i32 n = i32(progress*tot) - i32(last*tot);
-  for (i32 i = 0; i < n; ++i)
-    cout << '^';
-  
-  if (progress == 1) {
-    last = 0;
-    cout << "\n";
-  }
-  else
-    last = progress;
-  
-  cout.flush();
-}
-
 void processImages(int& argc, char**& argv) {
   ProgramSettings settings = CLIP_DEFAULT_PROGRAM_SETTINGS;
   settings.memoryValueType = valueType;
+  settings.bufferType = bufferType;
   
   if (deviceNum < 0) {
     vector<cl::Platform> platforms;
@@ -434,7 +442,7 @@ void processImages(int& argc, char**& argv) {
     
 //  typedef LLFlowInitOps InitialFlowOps;
   typedef JitteredFlowInitOps InitialFlowOps;
-//  typedef FlowInitOps InitialFlowOps;
+//  typedef GradientFlowInitOps InitialFlowOps;
   
   SetEnqueuesPerFinish(enqueuesPerFinish);
   
@@ -506,7 +514,7 @@ void processImages(int& argc, char**& argv) {
     if (runEdgeInit) {
       if (!edgeInitOps.get()) {
         edgeInitOps = shared_ptr<LLInitOps>(new LLInitOps(edgeInitOpParams));
-        edgeInitOps->addProgressListener(&progMon);
+        edgeInitOps->addProgressListener(&TextualProgressMonitor);
       }
       
       cout << "Calculating initial edge estimates..." << endl;
@@ -520,8 +528,10 @@ void processImages(int& argc, char**& argv) {
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
       
-      if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, pdfThresh);
+      if (outputPdf) {
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData,
+                            pdfThresh, pdfDarken);
+      }
     }
     if (runEdgeRelax) {
       if (!edgeRlxCurve.get()) {
@@ -529,7 +539,7 @@ void processImages(int& argc, char**& argv) {
           new RelaxCurveOp(edgeRlxCurveParams, curveIters,
                            curveDelta, rlxThresh);
         edgeRlxCurve = shared_ptr<RelaxCurveOp>(temp);
-        edgeRlxCurve->addProgressListener(&progMon);
+        edgeRlxCurve->addProgressListener(&TextualProgressMonitor);
       }
       
       cout << "Relaxing edges..." << endl;
@@ -543,14 +553,16 @@ void processImages(int& argc, char**& argv) {
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
       
-      if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, pdfThresh);
+      if (outputPdf) {
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData,
+                            pdfThresh, pdfDarken);
+      }
     }
     
     if (runLineInit) {
       if (!lineInitOps.get()) {
         lineInitOps = shared_ptr<LLInitOps>(new LLInitOps(lineInitOpParams));
-        lineInitOps->addProgressListener(&progMon);
+        lineInitOps->addProgressListener(&TextualProgressMonitor);
       }
       
       cout << "Calculating initial line estimates..." << endl;
@@ -564,8 +576,10 @@ void processImages(int& argc, char**& argv) {
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *linesData);
       
-      if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData, pdfThresh);
+      if (outputPdf) {
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData,
+                            pdfThresh, pdfDarken);
+      }
     }
     if (runLineRelax) {
       if (!lineRlxCurve.get()) {
@@ -573,7 +587,7 @@ void processImages(int& argc, char**& argv) {
           new RelaxCurveOp(lineRlxCurveParams, curveIters,
                            curveDelta, rlxThresh);
         lineRlxCurve = shared_ptr<RelaxCurveOp>(temp);
-        lineRlxCurve->addProgressListener(&progMon);
+        lineRlxCurve->addProgressListener(&TextualProgressMonitor);
       }
       
       cout << "Relaxing lines..." << endl;
@@ -588,14 +602,15 @@ void processImages(int& argc, char**& argv) {
         WriteMatlabArray(outputBaseName + ".mat", *linesData);
       
       if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData, pdfThresh);
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData,
+                            pdfThresh, pdfDarken);
     }
     
     if (runEdgeSuppress) {
       if (!edgeSuppressOps.get()) {
         edgeSuppressOps = shared_ptr<SuppressLineEdgesOp>
           (new SuppressLineEdgesOp(suppressLineEdgesOpParams));
-        edgeSuppressOps->addProgressListener(&progMon);
+        edgeSuppressOps->addProgressListener(&TextualProgressMonitor);
       }
       
       cout << "Suppressing edges around lines..." << endl;
@@ -609,15 +624,17 @@ void processImages(int& argc, char**& argv) {
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *edgesData);
       
-      if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData, pdfThresh);
+      if (outputPdf) {
+        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData,
+                            pdfThresh, pdfDarken);
+      }
     }
     
     if (runFlowInit) {
       if (!flowInitOps.get()) {
         flowInitOps = shared_ptr<InitialFlowOps>
           (new InitialFlowOps(flowInitOpParams));
-        flowInitOps->addProgressListener(&progMon);
+        flowInitOps->addProgressListener(&TextualProgressMonitor);
       }
       
       cout << "Calculating initial flow estimates..." << endl;
@@ -631,15 +648,17 @@ void processImages(int& argc, char**& argv) {
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *flowData);
       
-      if (outputPdf)
-        WriteFlowToPDF(outputBaseName + ".pdf", *flowData, pdfThresh);
+      if (outputPdf) {
+        WriteFlowToPDF(outputBaseName + ".pdf", *flowData,
+                       pdfThresh, pdfDarken);
+      }
     }
     if (runFlowRelax) {
       if (!rlxFlowOp.get()) {
         RelaxFlowOp* temp =
           new RelaxFlowOp(rlxFlowParams, flowIters, flowDelta);
         rlxFlowOp = shared_ptr<RelaxFlowOp>(temp);
-        rlxFlowOp->addProgressListener(&progMon);
+        rlxFlowOp->addProgressListener(&TextualProgressMonitor);
       }
       
       cout << "Relaxing flow..." << endl;
@@ -653,8 +672,10 @@ void processImages(int& argc, char**& argv) {
       if (outputMatlab)
         WriteMatlabArray(outputBaseName + ".mat", *flowData);
       
-      if (outputPdf)
-        WriteFlowToPDF(outputBaseName + ".pdf", *flowData, pdfThresh);
+      if (outputPdf) {
+        WriteFlowToPDF(outputBaseName + ".pdf", *flowData,
+                       pdfThresh, pdfDarken);
+      }
     }
     
     if (argc > 1)

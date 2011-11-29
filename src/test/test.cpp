@@ -15,30 +15,46 @@
 #define NUM_THETAS 8
 #define NUM_CURVS 1
 
-#define IMAGE1 "raven.jpg"
-#define IMAGE2 "camera.jpg"
+//#define IMAGE1 "raven.jpg"
+//#define IMAGE2 "camera.jpg"
+
+#define IMAGE1 "paolina.jpg"
+#define IMAGE2 "trans-small.png"
 
 #define OUTPUT "output/"
 #define IMAGES "images/"
 
 #define THING_TO_DO profileOp()
+//#define THING_TO_DO testJitterOps()
+//#define THING_TO_DO testGradientOps()
 //#define THING_TO_DO testGabor()
 //#define THING_TO_DO testFlowModel()
 //#define THING_TO_DO testFlowCompatibilities()
 //#define THING_TO_DO testCurveCompatibilities()
 
+using namespace std;
 using namespace clip;
 using namespace evp;
 
-inline void getImages(const std::vector<std::string> &imNames,
+inline void getImages(const vector<string> &imNames,
                       ImageBuffer* imBufs) {
-  std::vector<std::string>::const_iterator it;
+  vector<string>::const_iterator it;
   for (it = imNames.begin(); it != imNames.end(); ++it, ++imBufs) {
     ImageData image;
     ReadImage(IMAGES + *it, image);
     
     *imBufs = ImageBuffer(image);
   }
+}
+
+inline vector<ImageBuffer> getImages() {
+  vector<string> imNames;
+  imNames.push_back(IMAGE1);
+  imNames.push_back(IMAGE2);
+  
+  vector<ImageBuffer> imBufs(2);
+  getImages(imNames, &imBufs[0]);
+  return imBufs;
 }
 
 inline void testCurveCompatibilities() {
@@ -63,7 +79,7 @@ inline void testCurveCompatibilities() {
     }
   }
   
-  std::stringstream sstream;
+  stringstream sstream;
   sstream << OUTPUT "curve-test-compatibility.csv";
   WriteCSV(sstream.str(), reduction);
 }
@@ -73,7 +89,7 @@ inline void testFlowModel() {
   f64 scale = 1;
   
   FlowModel model(0, 0, 0*M_PI/8, 0.f, 1.f);
-  std::ofstream out(OUTPUT "flow-test-model.pdf", std::ios::out);
+  ofstream out(OUTPUT "flow-test-model.pdf", ios::out);
   PDFWriter writer(out, size, size);
   writer.setLineCapStyle(1);
   writer.translate(size/2, size/2);
@@ -112,7 +128,7 @@ inline void testFlowCompatibilities() {
         FlowSupportOpPtr connectionsOp(params.flowSupport(t, kt, kn, params));
         const NDArray<ImageData,3> &kernels = connectionsOp->kernels();
         
-        std::stringstream ss;
+        stringstream ss;
         ss << "Compatibilities/compat-"
            << ti << "-" << kti << "-" << kni << ".pdf";
         WriteFlowCompatToPDF(ss.str(), kernels);
@@ -214,29 +230,68 @@ inline void makePerfectRotationalFlow(FlowInitOpParams& initFlowParams,
   }
 }
 
+void testJitterOps() {
+  ClipInit(TEST_DEVICE_TYPE);
+  
+  vector<ImageBuffer> imBufs = getImages();
+  
+  FlowInitOpParams params(NUM_THETAS, NUM_CURVS);
+  JitteredFlowInitOps initOps(params);
+  initOps.addProgressListener(TextualProgressMonitor);
+  tic();
+  FlowBuffersPtr flow = initOps.apply(imBufs[0]);
+  cout << "Done in " << toc()/1000 << " milliseconds." << endl;
+  FlowDataPtr flowData = ReadImageDataFromBufferArray(*flow);
+  
+  WriteFlowToPDF(OUTPUT "gradient-out.pdf", *flowData);
+}
+
+void testGradientOps() {
+  ClipInit(TEST_DEVICE_TYPE);
+  
+  vector<ImageBuffer> imBufs = getImages();
+  
+  GradientOp grad;
+  ImageBuffer outXs = ~imBufs[0], outYs = ~imBufs[0];
+  grad(imBufs[0], outXs, outYs);
+  WriteJpeg(OUTPUT "out-xs.jpg", outXs.fetchData(), true);
+  WriteJpeg(OUTPUT "out-ys.jpg", outYs.fetchData(), true);
+  
+//  FlowInitOpParams params(NUM_THETAS, NUM_CURVS);
+//  GradientFlowInitOps initOps(params);
+//  initOps.addProgressListener(TextualProgressMonitor);
+//  tic();
+//  FlowBuffersPtr flow = initOps.apply(imBufs[0]);
+//  cout << "Done in " << toc()/1000 << " milliseconds." << endl;
+//  FlowDataPtr flowData = ReadImageDataFromBufferArray(*flow);
+//  WriteFlowToPDF(OUTPUT "flow-output.pdf", *flowData);
+}
+
+void testGabor() {
+  f32 baseSigma = 6;
+  ImageData gabor = MakeGabor(0, 3*baseSigma, M_PI/2, baseSigma, 1.5);
+  WriteJpeg(OUTPUT "gabor.jpg", gabor, true);
+}
+
 void profileOp() {
   ClipInit(TEST_DEVICE_TYPE);
   
-  std::vector<std::string> imNames;
-  imNames.push_back(IMAGE1);
-  imNames.push_back(IMAGE2);
+  vector<ImageBuffer> imBufs = getImages();
   
-  ImageBuffer imBufs[2];
-  getImages(imNames, imBufs);
-  
-  ImageBuffer output = ~imBufs[0];
-  
-  ImageData kernel = MakeGabor(M_PI/3, 4, 0, 4, 1.5);
-  Filter(imBufs[0], kernel, output);
+  srand(time(NULL));
+  f32 off1 = f32(rand())/RAND_MAX - 0.5f;
+  f32 off2 = 2*(f32(rand())/RAND_MAX - 0.5f);
+  ImageData kernel = MakeGabor(M_PI/3 + off1*M_PI/8, 3, 0, 4 + off2, 1);
+  ImageBuffer output = Filter(imBufs[0], SparseImageData(kernel));
 
 //  LLAnd(imBufs[0], imBufs[1], 16, false, 1.f, output);
   
-  std::cout << "Done in " << LastEventTiming()/1000000.f << " "
-            << "milliseconds.\n" << std::endl;
+  cout << "Done in " << LastEventTiming()/1000000.f << " "
+       << "milliseconds.\n" << endl;
   
   ImageData outputData = output.fetchData();
   
-  WriteJpeg(OUTPUT "profile-output.jpg", outputData, true);
+  WriteJpeg(OUTPUT "rotglass-out.jpg", outputData, true);
 }
 
 int main(i32, char *const []) {
@@ -244,11 +299,11 @@ int main(i32, char *const []) {
     THING_TO_DO;
   }
   catch (const cl::Error& err) {
-    std::cerr << "ERROR: " << err.what() << "(" << err.err() << ")"
-              << std::endl;
+    cerr << "ERROR: " << err.what() << "(" << err.err() << ")"
+              << endl;
   }
-  catch (const std::exception& exc) {
-    std::cerr << "ERROR: " << exc.what() << std::endl;
+  catch (const exception& exc) {
+    cerr << "ERROR: " << exc.what() << endl;
   }
   
 #ifdef _WIN32
