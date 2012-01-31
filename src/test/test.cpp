@@ -18,17 +18,17 @@
 //#define IMAGE1 "raven.jpg"
 //#define IMAGE2 "camera.jpg"
 
-#define IMAGE1 "paolina.jpg"
+#define IMAGE1 "raven.jpg"
 #define IMAGE2 "trans-small.png"
 
 #define OUTPUT "output/"
 #define IMAGES "images/"
 
-#define THING_TO_DO profileOp()
+//#define THING_TO_DO profileOp()
 //#define THING_TO_DO testJitterOps()
 //#define THING_TO_DO testGradientOps()
 //#define THING_TO_DO testGabor()
-//#define THING_TO_DO testFlowModel()
+#define THING_TO_DO testFlowModel()
 //#define THING_TO_DO testFlowCompatibilities()
 //#define THING_TO_DO testCurveCompatibilities()
 
@@ -88,7 +88,7 @@ inline void testFlowModel() {
   int size = 9;
   f64 scale = 1;
   
-  FlowModel model(0, 0, 0*M_PI/8, 0.f, 1.f);
+  FlowModel model(0, 0, 5*M_PI/8, 0.2f, 0.2f);
   ofstream out(OUTPUT "flow-test-model.pdf", ios::out);
   PDFWriter writer(out, size, size);
   writer.setLineCapStyle(1);
@@ -113,10 +113,10 @@ inline void testFlowModel() {
 
 inline void testFlowCompatibilities() {
   RelaxFlowOpParams params;
-  params.flowSupport = CreateUniformInhibitionFlowSupportOp;
-//  params.flowSupport = CreateInhibitionlessFlowSupportOp;
+//  params.flowSupport = CreateUniformInhibitionFlowSupportOp;
+  params.flowSupport = CreateInhibitionlessFlowSupportOp;
   params.numCurvatures = 5;
-  params.subsamples = 3;
+  params.subsamples = 1;
   
   for (i32 ti = 0; ti < params.numOrientations; ti++) {
     float t = ti*params.orientationStep;
@@ -129,7 +129,7 @@ inline void testFlowCompatibilities() {
         const NDArray<ImageData,3> &kernels = connectionsOp->kernels();
         
         stringstream ss;
-        ss << "Compatibilities/compat-"
+        ss << "output/compat-"
            << ti << "-" << kti << "-" << kni << ".pdf";
         WriteFlowCompatToPDF(ss.str(), kernels);
         
@@ -268,8 +268,8 @@ void testGradientOps() {
 }
 
 void testGabor() {
-  f32 baseSigma = 6;
-  ImageData gabor = MakeGabor(0, 3*baseSigma, M_PI/2, baseSigma, 1.5);
+  f32 baseWavelength = 12;
+  ImageData gabor = MakeGabor(0, baseWavelength, 0, baseWavelength, 1.5);
   WriteJpeg(OUTPUT "gabor.jpg", gabor, true);
 }
 
@@ -282,7 +282,7 @@ void profileOp() {
   f32 off1 = f32(rand())/RAND_MAX - 0.5f;
   f32 off2 = 2*(f32(rand())/RAND_MAX - 0.5f);
   ImageData kernel = MakeGabor(M_PI/3 + off1*M_PI/8, 3, 0, 4 + off2, 1);
-  ImageBuffer output = Filter(imBufs[0], SparseImageData(kernel));
+  ImageBuffer output = Filter(imBufs[0], kernel);
 
 //  LLAnd(imBufs[0], imBufs[1], 16, false, 1.f, output);
   

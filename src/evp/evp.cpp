@@ -134,7 +134,7 @@ void bufferTypeHandler(int& argc, char**& argv) {
   string name, name0;
   getArgument(argc, argv, &name0);
   name.resize(name0.length());
-  transform(name.begin(), name.end(), name.begin(), ::tolower);
+  transform(name0.begin(), name0.end(), name.begin(), ::tolower);
   
   if (name == "global")
     bufferType = Global;
@@ -144,10 +144,10 @@ void bufferTypeHandler(int& argc, char**& argv) {
     die("Invalid storage type " + name0 + ", should be 'Global' or 'Texture'");
 }
 
-i32 enqueuesPerFinish = 1000;
+i32 enqueuesPerFinish = 5000;
 string epfOpts[] = {"--max-enqueues"};
 string epfArgs[] = {"n"};
-string epfDesc = "Let device catch up after <n> enqueues. Default: 1000.";
+string epfDesc = "Let device catch up after <n> enqueues. Default: 5000.";
 void epfHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &enqueuesPerFinish);
   if (enqueuesPerFinish <= 0)
@@ -222,12 +222,12 @@ void flowItersHandler(int& argc, char**& argv) {
     die("Invalid number of iterations (must be > 0)");
 }
 
-f32 flowDelta = 1.f;
+f32 flowDelta = 0.25f;
 string flowDeltaOpts[] = {"--flow-delta"};
 string flowDeltaArgs[] = {"d"};
-string flowDeltaDesc = "Use <d> for flow relaxation delta. Default: 1.";
+string flowDeltaDesc = "Use <d> for flow relaxation delta. Default: 0.25.";
 void flowDeltaHandler(int& argc, char**& argv) {
-  getArgument(argc, argv, &curveDelta);
+  getArgument(argc, argv, &flowDelta);
 }
 
 bool outputMatlab = true;
