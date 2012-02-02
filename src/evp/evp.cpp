@@ -261,13 +261,13 @@ string flowInitTypeArgs[] = {"t"};
 string flowInitTypeDesc = "Initial flow op ('Gradient' or default of  'Gabor').";
 void flowInitTypeHandler(int& argc, char**& argv) {
   string name, name0;
-  getArgument(argc, argv, &flowDelta);
+  getArgument(argc, argv, &name0);
   name.resize(name0.length());
   transform(name0.begin(), name0.end(), name.begin(), ::tolower);
   
   if (name == "gradient")
     flowInitType = GradientInit;
-  else if (name == "texture")
+  else if (name == "gabor")
     flowInitType = GaborInit;
   else {
     die("Invalid initial flow op type " + name0 +
