@@ -230,6 +230,51 @@ void flowDeltaHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &flowDelta);
 }
 
+f32 flowMinSupport = 0.25f;
+string flowMinSupportOpts[] = {"--flow-min-support"};
+string flowMinSupportArgs[] = {"s"};
+string flowMinSupportDesc = "Require <s> as minimal flow support. Default: 0.25.";
+void flowMinSupportHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &flowMinSupport);
+}
+
+f32 flowInitSize = 2.f;
+string flowInitSizeOpts[] = {"--flow-init-size"};
+string flowInitSizeArgs[] = {"d"};
+string flowInitSizeDesc = "Use <d> for initial flow operator size. Default: 2.";
+void flowInitSizeHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &flowInitSize);
+}
+
+f32 flowInitThresh = 0.01f;
+string flowInitThreshOpts[] = {"--flow-init-thresh"};
+string flowInitThreshArgs[] = {"t"};
+string flowInitThreshDesc = "Use <t> for initial flow threshold. Default: 0.01.";
+void flowInitThreshHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &flowInitThresh);
+}
+
+enum FlowInitOpType { GradientInit, GaborInit };
+FlowInitOpType flowInitType = GaborInit;
+string flowInitTypeOpts[] = {"--flow-init-op"};
+string flowInitTypeArgs[] = {"t"};
+string flowInitTypeDesc = "Initial flow op ('Gradient' or default of  'Gabor').";
+void flowInitTypeHandler(int& argc, char**& argv) {
+  string name, name0;
+  getArgument(argc, argv, &flowDelta);
+  name.resize(name0.length());
+  transform(name0.begin(), name0.end(), name.begin(), ::tolower);
+  
+  if (name == "gradient")
+    flowInitType = GradientInit;
+  else if (name == "texture")
+    flowInitType = GaborInit;
+  else {
+    die("Invalid initial flow op type " + name0 +
+        ", should be 'Gradient' or 'Gabor'");
+  }
+}
+
 bool outputMatlab = true;
 string noMatlabOpts[] = {"--no-mat"};
 string noMatlabDesc = "Don't output in MATLAB format.";
@@ -308,8 +353,12 @@ OptionEntry options[] = {
   OPTION_ARGS_ENTRY(rlxThresh),
   OPTION_ARGS_ENTRY(curveIters),
   OPTION_ARGS_ENTRY(curveDelta),
+  OPTION_ARGS_ENTRY(flowInitSize),
+  OPTION_ARGS_ENTRY(flowInitType),
+  OPTION_ARGS_ENTRY(flowInitThresh),
   OPTION_ARGS_ENTRY(flowIters),
   OPTION_ARGS_ENTRY(flowDelta),
+  OPTION_ARGS_ENTRY(flowMinSupport),
   OPTION_FLAG_ENTRY(noMatlab),
   OPTION_FLAG_ENTRY(pdf),
   OPTION_ARGS_ENTRY(pdfThresh),
@@ -439,10 +488,6 @@ void processImages(int& argc, char**& argv) {
   }
   else
     ClipInit(platformNum, deviceNum, settings);
-    
-//  typedef LLFlowInitOps InitialFlowOps;
-  typedef JitteredFlowInitOps InitialFlowOps;
-//  typedef GradientFlowInitOps InitialFlowOps;
   
   SetEnqueuesPerFinish(enqueuesPerFinish);
   
@@ -465,9 +510,12 @@ void processImages(int& argc, char**& argv) {
   shared_ptr<SuppressLineEdgesOp> edgeSuppressOps;
   
   FlowInitOpParams flowInitOpParams(numOrientations, numCurvatures);
-  shared_ptr<InitialFlowOps> flowInitOps;
+  flowInitOpParams.size = flowInitSize;
+  flowInitOpParams.threshold = flowInitThresh;
+  shared_ptr<FlowInitOps> flowInitOps;
   
   RelaxFlowOpParams rlxFlowParams(numOrientations, numCurvatures);
+  rlxFlowParams.minSupport = flowMinSupport;
   shared_ptr<RelaxFlowOp> rlxFlowOp;
   
   i32 total = argc;
@@ -632,8 +680,18 @@ void processImages(int& argc, char**& argv) {
     
     if (runFlowInit) {
       if (!flowInitOps.get()) {
-        flowInitOps = shared_ptr<InitialFlowOps>
-          (new InitialFlowOps(flowInitOpParams));
+        switch (flowInitType) {
+          case GradientInit:
+            flowInitOps = shared_ptr<FlowInitOps>
+              (new GradientFlowInitOps(flowInitOpParams));
+            break;
+          
+          case GaborInit:
+            flowInitOps = shared_ptr<FlowInitOps>
+              (new JitteredFlowInitOps(flowInitOpParams));
+            break;
+        }
+        
         flowInitOps->addProgressListener(&TextualProgressMonitor);
       }
       

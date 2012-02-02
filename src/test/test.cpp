@@ -28,8 +28,8 @@
 //#define THING_TO_DO testJitterOps()
 //#define THING_TO_DO testGradientOps()
 //#define THING_TO_DO testGabor()
-#define THING_TO_DO testFlowModel()
-//#define THING_TO_DO testFlowCompatibilities()
+//#define THING_TO_DO testFlowModel()
+#define THING_TO_DO testFlowCompatibilities()
 //#define THING_TO_DO testCurveCompatibilities()
 
 using namespace std;
@@ -130,8 +130,9 @@ inline void testFlowCompatibilities() {
         
         stringstream ss;
         ss << "output/compat-"
-           << ti << "-" << kti << "-" << kni << ".pdf";
-        WriteFlowCompatToPDF(ss.str(), kernels);
+           << ti << "-" << kti << "-" << kni << ".mat";
+//        WriteFlowCompatToPDF(ss.str(), kernels);
+        WriteMatlabArray(ss.str(), kernels);
         
 //        for (i32 ktj = 0; ktj < params.numCurvatures; ktj++) {
 //          for (i32 knj = 0; knj < params.numCurvatures; knj++) {
