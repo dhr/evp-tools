@@ -85,6 +85,7 @@ require () {
 
 olddir=$(pwd)
 
+mkdir -p ~/bin
 mkdir -p ~/setup
 cd ~/setup
 
