@@ -65,7 +65,8 @@ require () {
       echo "Building evp..."
       (
         cd evp-tools
-        premake4 --evp --no-jpeg gmake >&-
+        premake4 --no-jpeg gmake >&-
+        premake4 embed >&-
         if [[ -z $DEFINES ]] || ! echo $DEFINES | grep -q NO_JPEG; then
           export DEFINES+=" -DNO_GL_INTEROP -DEVP_NO_JPEG "
         fi
