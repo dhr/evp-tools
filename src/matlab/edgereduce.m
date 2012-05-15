@@ -1,4 +1,4 @@
-function cols = colreduce(cols, thresh, thin)
+function cols = edgereduce(cols, thresh, thin)
 
 cols = max(max(cols, [], 4), [], 3) > thresh;
 
