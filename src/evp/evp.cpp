@@ -89,7 +89,7 @@ void helpHandler(int&, char**&);
 i32 platformNum = 0;
 string platformOpts[] = {"-p", "--platform"};
 string platformArgs[] = {"id"};
-string platformDesc = "Select platform <id>. Default: 0.";
+string platformDesc = "Select OpenCL platform <id>.";
 void platformHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &platformNum);
   platformNum--;
@@ -98,7 +98,7 @@ void platformHandler(int& argc, char**& argv) {
 i32 deviceNum = -1;
 string deviceOpts[] = {"-d", "--device"};
 string deviceArgs[] = {"id"};
-string deviceDesc = "Select device <id>. Default: Default platform device.";
+string deviceDesc = "Select OpenCL device <id>.";
 void deviceHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &deviceNum);
   deviceNum--;
@@ -107,7 +107,7 @@ void deviceHandler(int& argc, char**& argv) {
 ValueType valueType = Float32;
 string valueTypeOpts[] = {"-b", "--bit-depth"};
 string valueTypeArgs[] = {"n"};
-string valueTypeDesc = "Bits to use for image storage (16 or 32). Default: 32.";
+string valueTypeDesc = "Use <n> bits for image storage (16 or default of 32).";
 void valueTypeHandler(int& argc, char**& argv) {
   i32 bits;
   getArgument(argc, argv, &bits);
@@ -147,7 +147,7 @@ void bufferTypeHandler(int& argc, char**& argv) {
 i32 enqueuesPerFinish = 5000;
 string epfOpts[] = {"--max-enqueues"};
 string epfArgs[] = {"n"};
-string epfDesc = "Let device catch up after <n> enqueues. Default: 5000.";
+string epfDesc = "Let device catch up after <n> (=5000) enqueues.";
 void epfHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &enqueuesPerFinish);
   if (enqueuesPerFinish <= 0)
@@ -157,7 +157,7 @@ void epfHandler(int& argc, char**& argv) {
 i32 numOrientations = 8;
 string numOrientationsOpts[] = {"-t", "--orientations"};
 string numOrientationsArgs[] = {"n"};
-string numOrientationsDesc = "Use <n> orientations. Default: 8.";
+string numOrientationsDesc = "Use <n> (=8) orientations.";
 void numOrientationsHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &numOrientations);
   if (numOrientations <= 0 || numOrientations%2 != 0)
@@ -167,7 +167,7 @@ void numOrientationsHandler(int& argc, char**& argv) {
 i32 numCurvatures = 3;
 string numCurvaturesOpts[] = {"-k", "--curvatures"};
 string numCurvaturesArgs[] = {"n"};
-string numCurvaturesDesc = "Use <n> curvatures. Default: 3.";
+string numCurvaturesDesc = "Use <n> (=3) curvatures.";
 void numCurvaturesHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &numCurvatures);
   if (numCurvatures <= 0 || numCurvatures > 5 || numCurvatures%2 == 0)
@@ -177,17 +177,17 @@ void numCurvaturesHandler(int& argc, char**& argv) {
 f32 curveScale = 1.f;
 string curveScaleOpts[] = {"--curve-scale"};
 string curveScaleArgs[] = {"s"};
-string curveScaleDesc = "Scale initial curve operators by <s>. Default: 1.";
+string curveScaleDesc = "Scale initial curve operators by <s> (=1.0).";
 void curveScaleHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &curveScale);
   if (curveScale < 1)
-    die("Invalid curve scaling (must be >= 1)");
+    die("Invalid curve scaling (must be >= 1.0)");
 }
 
 f32 rlxThresh = 0.f;
 string rlxThreshOpts[] = {"--rlx-thresh"};
 string rlxThreshArgs[] = {"t"};
-string rlxThreshDesc = "Threshold relaxing curves with <t>. Default: 0.";
+string rlxThreshDesc = "Threshold relaxing curves with <t> (=0.0).";
 void rlxThreshHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &rlxThresh);
   if (rlxThresh < 0 || rlxThresh >= 1)
@@ -197,7 +197,7 @@ void rlxThreshHandler(int& argc, char**& argv) {
 i32 curveIters = 5;
 string curveItersOpts[] = {"--curve-iters"};
 string curveItersArgs[] = {"n"};
-string curveItersDesc = "Use <n> iterations for curve relaxation. Default: 5.";
+string curveItersDesc = "Use <n> (=5) iterations for curve relaxation.";
 void curveItersHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &curveIters);
   if (curveIters <= 0)
@@ -207,15 +207,15 @@ void curveItersHandler(int& argc, char**& argv) {
 f32 curveDelta = 1.f;
 string curveDeltaOpts[] = {"--curve-delta"};
 string curveDeltaArgs[] = {"d"};
-string curveDeltaDesc = "Use <d> for curve relaxation delta. Default: 1.";
+string curveDeltaDesc = "Use <d> (=1.0) for curve relaxation delta.";
 void curveDeltaHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &curveDelta);
 }
 
-i32 flowIters = 10;
+i32 flowIters = 30;
 string flowItersOpts[] = {"--flow-iters"};
 string flowItersArgs[] = {"n"};
-string flowItersDesc = "Use <n> iterations for flow relaxation. Default: 10.";
+string flowItersDesc = "Use <n> (=30) iterations for flow relaxation.";
 void flowItersHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &flowIters);
   if (flowIters <= 0)
@@ -225,7 +225,7 @@ void flowItersHandler(int& argc, char**& argv) {
 f32 flowDelta = 0.25f;
 string flowDeltaOpts[] = {"--flow-delta"};
 string flowDeltaArgs[] = {"d"};
-string flowDeltaDesc = "Use <d> for flow relaxation delta. Default: 0.25.";
+string flowDeltaDesc = "Use <d> (=0.25) for flow relaxation delta.";
 void flowDeltaHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &flowDelta);
 }
@@ -233,23 +233,47 @@ void flowDeltaHandler(int& argc, char**& argv) {
 f32 flowMinSupport = 0.25f;
 string flowMinSupportOpts[] = {"--flow-min-support"};
 string flowMinSupportArgs[] = {"s"};
-string flowMinSupportDesc = "Require <s> as minimal flow support. Default: 0.25.";
+string flowMinSupportDesc = "Require <s> (=0.25) as minimal flow support.";
 void flowMinSupportHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &flowMinSupport);
 }
 
 f32 flowInitSize = 2.f;
 string flowInitSizeOpts[] = {"--flow-init-size"};
-string flowInitSizeArgs[] = {"d"};
-string flowInitSizeDesc = "Use <d> for initial flow operator size. Default: 2.";
+string flowInitSizeArgs[] = {"s"};
+string flowInitSizeDesc = "Use <s> (=2.0) for initial flow operator scale.";
 void flowInitSizeHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &flowInitSize);
+}
+
+i32 flowThetaJitters = 1;
+string flowThetaJittersOpts[] = {"--orientation-jitters"};
+string flowThetaJittersArgs[] = {"n"};
+string flowThetaJittersDesc = "Use <n> (=1) for number of orientation jitters.";
+void flowThetaJittersHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &flowThetaJitters);
+}
+
+i32 flowNumScaleJitters = 1;
+string flowNumScaleJittersOpts[] = {"--scale-jitters"};
+string flowNumScaleJittersArgs[] = {"n"};
+string flowNumScaleJittersDesc = "Use <n> (=1) for number of scale jitters.";
+void flowNumScaleJittersHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &flowNumScaleJitters);
+}
+
+f32 flowMinConf = 0.7f;
+string flowMinConfOpts[] = {"--flow-min-conf"};
+string flowMinConfArgs[] = {"c"};
+string flowMinConfDesc = "Use <c> (=0.7) for minimum initial flow confidences.";
+void flowMinConfHandler(int& argc, char**& argv) {
+  getArgument(argc, argv, &flowMinConf);
 }
 
 f32 flowInitThresh = 0.01f;
 string flowInitThreshOpts[] = {"--flow-init-thresh"};
 string flowInitThreshArgs[] = {"t"};
-string flowInitThreshDesc = "Use <t> for initial flow threshold. Default: 0.01.";
+string flowInitThreshDesc = "Use <t> (=0.01) for initial flow threshold.";
 void flowInitThreshHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &flowInitThresh);
 }
@@ -258,7 +282,7 @@ enum FlowInitOpType { GradientInit, GaborInit };
 FlowInitOpType flowInitType = GaborInit;
 string flowInitTypeOpts[] = {"--flow-init-op"};
 string flowInitTypeArgs[] = {"t"};
-string flowInitTypeDesc = "Initial flow op ('Gradient' or default of  'Gabor').";
+string flowInitTypeDesc = "Initial flow op ('Gradient' or default of 'Gabor').";
 void flowInitTypeHandler(int& argc, char**& argv) {
   string name, name0;
   getArgument(argc, argv, &name0);
@@ -292,7 +316,7 @@ void pdfHandler(int& argc, char**& argv) {
 f32 pdfDarken = 1; // This confusingly is the value for no darkening...
 string pdfDarkenOpts[] = {"--pdf-darken"};
 string pdfDarkenArgs[] = {"d"};
-string pdfDarkenDesc = "Darken PDF by amount <d>.";
+string pdfDarkenDesc = "Darken PDF by amount <d> (=0.0).";
 void pdfDarkenHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &pdfDarken);
   if (pdfDarken < 0 || pdfDarken > 1)
@@ -303,7 +327,7 @@ void pdfDarkenHandler(int& argc, char**& argv) {
 string outputDir = ".";
 string outputDirOpts[] = {"-o", "--output-dir"};
 string outputDirArgs[] = {"dir"};
-string outputDirDesc = "Write output to <dir>. Default: Current directory.";
+string outputDirDesc = "Write output to <dir>. Defaults to current directory.";
 void outputDirHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &outputDir);
 }
@@ -311,7 +335,7 @@ void outputDirHandler(int& argc, char**& argv) {
 f32 pdfThresh = 0.01f;
 string pdfThreshOpts[] = {"--pdf-thresh"};
 string pdfThreshArgs[] = {"t"};
-string pdfThreshDesc = "Use <t> for flow relaxation delta. Default: 0.01.";
+string pdfThreshDesc = "Use <t> (=0.01) for thresholding PDF output.";
 void pdfThreshHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &pdfThresh);
 }
@@ -354,6 +378,9 @@ OptionEntry options[] = {
   OPTION_ARGS_ENTRY(curveIters),
   OPTION_ARGS_ENTRY(curveDelta),
   OPTION_ARGS_ENTRY(flowInitSize),
+  OPTION_ARGS_ENTRY(flowMinConf),
+  OPTION_ARGS_ENTRY(flowThetaJitters),
+  OPTION_ARGS_ENTRY(flowNumScaleJitters),
   OPTION_ARGS_ENTRY(flowInitType),
   OPTION_ARGS_ENTRY(flowInitThresh),
   OPTION_ARGS_ENTRY(flowIters),
@@ -511,6 +538,7 @@ void processImages(int& argc, char**& argv) {
   
   FlowInitOpParams flowInitOpParams(numOrientations, numCurvatures);
   flowInitOpParams.size = flowInitSize;
+  flowInitOpParams.minConf = flowMinConf;
   flowInitOpParams.threshold = flowInitThresh;
   shared_ptr<FlowInitOps> flowInitOps;
   
@@ -688,7 +716,9 @@ void processImages(int& argc, char**& argv) {
           
           case GaborInit:
             flowInitOps = shared_ptr<FlowInitOps>
-              (new JitteredFlowInitOps(flowInitOpParams));
+              (new JitteredFlowInitOps(flowInitOpParams,
+                                       flowThetaJitters,
+                                       flowNumScaleJitters));
             break;
         }
         
