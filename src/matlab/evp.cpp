@@ -254,14 +254,14 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
   --nrhs; ++prhs;
   try {
     if (commandName == "cpu") {
-      ClipInit(CPU, Float32, Float32, openCLNotificationHandler);
+      ClipInit(CPU, CLIP_DEFAULT_PROGRAM_SETTINGS, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
     }
     
     if (commandName == "gpu") {
-      ClipInit(GPU, Float32, Float32, openCLNotificationHandler);
+      ClipInit(GPU, CLIP_DEFAULT_PROGRAM_SETTINGS, openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
       return;
@@ -279,13 +279,13 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
       if (nrhs)
         filtValType = ValueTypeForBitDepth(i32(mxGetScalar(*prhs)));
       
+      ProgramSettings progSettings(4, imValType, filtValType, Global);
       if (!initialized) {
-        ClipInit(GPU, imValType, filtValType, openCLNotificationHandler);
+        ClipInit(GPU, progSettings, openCLNotificationHandler);
         initCommands(commands);
       }
       else {
-        ClipInit(CurrentDevice(), imValType, filtValType,
-                 openCLNotificationHandler);
+        ClipInit(CurrentDevice(), progSettings, openCLNotificationHandler);
       }
       
       initialized = true;
@@ -357,7 +357,7 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
       if (deviceIndex < 0 || deviceIndex >= i32(devices.size()))
         mexErrMsgTxt("Invalid device index.");
       
-      ClipInit(devices[deviceIndex], Float32, Float32,
+      ClipInit(devices[deviceIndex], CLIP_DEFAULT_PROGRAM_SETTINGS,
                openCLNotificationHandler);
       if (!initialized) initCommands(commands);
       initialized = true;
@@ -365,7 +365,7 @@ void mexFunction(int nlhs, mxArray** plhs, int nrhs, const mxArray** prhs) {
     }
     
     if (!initialized) {
-      ClipInit(GPU, Float32, Float32, openCLNotificationHandler);
+      ClipInit(GPU, CLIP_DEFAULT_PROGRAM_SETTINGS, openCLNotificationHandler);
       initCommands(commands);
       initialized = true;
     }
