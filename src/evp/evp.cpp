@@ -39,7 +39,6 @@ bool runEdgeRelax = false;
 string edgeRelaxOpts[] = {"edge-relax"};
 string edgeRelaxDesc = "Run edge relaxation (implies edge-init).";
 void edgeRelaxHandler(int&, char**&) {
-  runEdgeInit = true;
   runEdgeRelax = true;
 }
 
@@ -54,7 +53,6 @@ bool runLineRelax = false;
 string lineRelaxOpts[] = {"line-relax"};
 string lineRelaxDesc = "Run line relaxation (implies line-init).";
 void lineRelaxHandler(int&, char**&) {
-  runLineInit = true;
   runLineRelax = true;
 }
 
@@ -62,8 +60,6 @@ bool runEdgeSuppress = false;
 string edgeSuppressOpts[] = {"edge-suppress"};
 string edgeSuppressDesc = "Run edge suppression (implies edge- and line-init).";
 void edgeSuppressHandler(int&, char**&) {
-  runEdgeInit = true;
-  runLineInit = true;
   runEdgeSuppress = true;
 }
 
@@ -78,7 +74,6 @@ bool runFlowRelax = false;
 string flowRelaxOpts[] = {"flow-relax"};
 string flowRelaxDesc = "Run flow relaxation operators (implies flow-init).";
 void flowRelaxHandler(int&, char**&) {
-  runFlowInit = true;
   runFlowRelax = true;
 }
 
@@ -278,11 +273,11 @@ void flowInitThreshHandler(int& argc, char**& argv) {
   getArgument(argc, argv, &flowInitThresh);
 }
 
-enum FlowInitOpType { GradientInit, GaborInit };
+enum FlowInitOpType { GradientInit, GaborInit, PushPullInit };
 FlowInitOpType flowInitType = GaborInit;
 string flowInitTypeOpts[] = {"--flow-init-op"};
 string flowInitTypeArgs[] = {"t"};
-string flowInitTypeDesc = "Initial flow op ('Gradient' or default of 'Gabor').";
+string flowInitTypeDesc = "Initial flow op ('Gradient', 'PushPull' or default 'Gabor').";
 void flowInitTypeHandler(int& argc, char**& argv) {
   string name, name0;
   getArgument(argc, argv, &name0);
@@ -293,6 +288,8 @@ void flowInitTypeHandler(int& argc, char**& argv) {
     flowInitType = GradientInit;
   else if (name == "gabor")
     flowInitType = GaborInit;
+  else if (name == "pushpull")
+    flowInitType = PushPullInit;
   else {
     die("Invalid initial flow op type " + name0 +
         ", should be 'Gradient' or 'Gabor'");
@@ -570,24 +567,31 @@ void processImages(int& argc, char**& argv) {
     string extension = imageName.substr(lastDot + 1);
     
     ImageData imageData;
-    try {
-      ReadImage(imageFile, imageData);
-    }
-    catch (const exception& err) {
-      die(err.what());
+    ImageBuffer imageBuffer;
+    
+    bool isMatFile = extension == "mat";
+    if (!isMatFile) {
+      try {
+        ReadImage(imageFile, imageData);
+        imageBuffer = ImageBuffer(imageData);
+      }
+      catch (const exception& err) {
+        die(err.what());
+      }
     }
     
-    ImageBuffer imageBuffer(imageData);
-    CurveBuffersPtr edges, lines;
-    CurveDataPtr edgesData, linesData;
-    FlowBuffersPtr flow;
-    FlowDataPtr flowData;
+    CurveBuffersPtr edges = CurveBuffersPtr(new CurveBuffers());
+    CurveDataPtr edgesData = CurveDataPtr(new CurveData());
+    CurveBuffersPtr lines = CurveBuffersPtr(new CurveBuffers());
+    CurveDataPtr linesData = CurveDataPtr(new CurveData());
+    FlowBuffersPtr flow = FlowBuffersPtr(new FlowBuffers());
+    FlowDataPtr flowData = FlowDataPtr(new FlowData());
     
     cout << "Image " << ++soFar << "/" << total << ": " << baseName << endl;
     
     std::string outputBaseName;
     
-    if (runEdgeInit) {
+    if (runEdgeInit || (runEdgeRelax && !isMatFile)) {
       if (!edgeInitOps.get()) {
         edgeInitOps = shared_ptr<LLInitOps>(new LLInitOps(edgeInitOpParams));
         edgeInitOps->addProgressListener(&TextualProgressMonitor);
@@ -610,6 +614,12 @@ void processImages(int& argc, char**& argv) {
       }
     }
     if (runEdgeRelax) {
+      if (isMatFile) {
+        if (!ReadMatlabArray(imageFile, *edgesData))
+          die("Failed to read edge data");
+        WriteImageDataToBufferArray(*edgesData, *edges);
+      }
+      
       if (!edgeRlxCurve.get()) {
         RelaxCurveOp* temp =
           new RelaxCurveOp(edgeRlxCurveParams, curveIters,
@@ -657,7 +667,13 @@ void processImages(int& argc, char**& argv) {
                             pdfThresh, pdfDarken);
       }
     }
-    if (runLineRelax) {
+    if (runLineRelax || (runLineRelax && !isMatFile)) {
+      if (isMatFile) {
+        if (!ReadMatlabArray(imageFile, *linesData))
+          die("Failed to read line data");
+        WriteImageDataToBufferArray(*linesData, *lines);
+      }
+      
       if (!lineRlxCurve.get()) {
         RelaxCurveOp* temp =
           new RelaxCurveOp(lineRlxCurveParams, curveIters,
@@ -706,7 +722,7 @@ void processImages(int& argc, char**& argv) {
       }
     }
     
-    if (runFlowInit) {
+    if (runFlowInit || (runFlowRelax && !isMatFile)) {
       if (!flowInitOps.get()) {
         switch (flowInitType) {
           case GradientInit:
@@ -720,6 +736,12 @@ void processImages(int& argc, char**& argv) {
                                        flowThetaJitters,
                                        flowNumScaleJitters));
             break;
+            
+          case PushPullInit:
+            flowInitOps = shared_ptr<FlowInitOps>
+              (new PushPullInitOps(flowInitOpParams,
+                                   flowThetaJitters,
+                                   flowNumScaleJitters));
         }
         
         flowInitOps->addProgressListener(&TextualProgressMonitor);
@@ -742,6 +764,12 @@ void processImages(int& argc, char**& argv) {
       }
     }
     if (runFlowRelax) {
+      if (isMatFile) {
+        if (!ReadMatlabArray(imageFile, *flowData))
+          die("Failed to read flow data");
+        WriteImageDataToBufferArray(*flowData, *flow);
+      }
+      
       if (!rlxFlowOp.get()) {
         RelaxFlowOp* temp =
           new RelaxFlowOp(rlxFlowParams, flowIters, flowDelta);
