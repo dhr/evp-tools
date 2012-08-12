@@ -77,8 +77,22 @@ void flowRelaxHandler(int&, char**&) {
   runFlowRelax = true;
 }
 
+bool curvePdf = false;
+string curvePdfOpts[] = {"curve-pdf"};
+string curvePdfDesc = "Render a MAT file containing curve data as a PDF.";
+void curvePdfHandler(int&, char**&) {
+  curvePdf = true;
+}
+
+bool flowPdf = false;
+string flowPdfOpts[] = {"flow-pdf"};
+string flowPdfDesc = "Render a MAT file containing flow data as a PDF.";
+void flowPdfHandler(int&, char**&) {
+  flowPdf = true;
+}
+
 string helpOpts[] = {"-h", "--help"};
-string helpDesc = "Show this help text.";
+string helpDesc = "Show this help text and exit immediately.";
 void helpHandler(int&, char**&);
 
 i32 platformNum = 0;
@@ -342,27 +356,34 @@ typedef struct OptionEntry {
   string* args; int nargs;
   void (*handleOption)(int& argc, char**& argv);
   string description;
+  bool isCommand;
 } OptionEntry;
+
+#define OPTION_COMMAND_ENTRY(name) \
+  {name##Opts, sizeof(name##Opts)/sizeof(string), NULL, 0, \
+   &name##Handler, name##Desc, true}
 
 #define OPTION_FLAG_ENTRY(name) \
   {name##Opts, sizeof(name##Opts)/sizeof(string), NULL, 0, \
-   &name##Handler, name##Desc}
+   &name##Handler, name##Desc, false}
 
 #define OPTION_ARGS_ENTRY(name) \
   {name##Opts, sizeof(name##Opts)/sizeof(string), \
    name##Args, sizeof(name##Args)/sizeof(string), \
-   &name##Handler, name##Desc}
+   &name##Handler, name##Desc, false}
 
 OptionEntry options[] = {
-  OPTION_FLAG_ENTRY(listDevices),
-  OPTION_FLAG_ENTRY(edgeInit),
-  OPTION_FLAG_ENTRY(edgeRelax),
-  OPTION_FLAG_ENTRY(lineInit),
-  OPTION_FLAG_ENTRY(lineRelax),
-  OPTION_FLAG_ENTRY(edgeSuppress),
-  OPTION_FLAG_ENTRY(flowInit),
-  OPTION_FLAG_ENTRY(flowRelax),
-  OPTION_FLAG_ENTRY(help),
+  OPTION_COMMAND_ENTRY(listDevices),
+  OPTION_COMMAND_ENTRY(edgeInit),
+  OPTION_COMMAND_ENTRY(edgeRelax),
+  OPTION_COMMAND_ENTRY(lineInit),
+  OPTION_COMMAND_ENTRY(lineRelax),
+  OPTION_COMMAND_ENTRY(edgeSuppress),
+  OPTION_COMMAND_ENTRY(flowInit),
+  OPTION_COMMAND_ENTRY(flowRelax),
+  OPTION_COMMAND_ENTRY(curvePdf),
+  OPTION_COMMAND_ENTRY(flowPdf),
+  OPTION_COMMAND_ENTRY(help),
   OPTION_ARGS_ENTRY(platform),
   OPTION_ARGS_ENTRY(device),
   OPTION_ARGS_ENTRY(valueType),
@@ -392,7 +413,7 @@ OptionEntry options[] = {
 i32 numOptions = sizeof(options)/sizeof(OptionEntry);
 
 void helpHandler(int&, char**&) {
-  cout << "Usage: evp command[s] [options] images\n";
+  cout << "Usage: evp command[s] [options] inputs\n";
   
   i32 maxOptionLength = 0;
   for (i32 i = 0; i < numOptions; ++i) {
@@ -470,7 +491,8 @@ void listDevicesHandler(int&, char**&) {
   exit(0);
 }
 
-void processOptions(int& argc, char**& argv) {
+bool processOptions(int& argc, char**& argv) {
+  bool commandSpecified = false;
   while (argc) {
     string opt(*argv);
     bool recognized = false;
@@ -480,6 +502,7 @@ void processOptions(int& argc, char**& argv) {
         if (opt == options[i].opts[j]) {
           options[i].handleOption(argc, argv);
           recognized = true;
+          commandSpecified = commandSpecified || options[i].isCommand;
           goto loopend;
         }
       }
@@ -487,15 +510,16 @@ void processOptions(int& argc, char**& argv) {
 loopend:
 
     if (**argv != '-' && !recognized) {
-      return; // Assume we've hit filenames
+      return commandSpecified; // Assume we've hit filenames
     }
     else if (!recognized) {
       die("Unrecognized option " + opt);
-      exit(1);
     }
     
     --argc; ++argv;
   }
+  
+  return commandSpecified;
 }
 
 void processImages(int& argc, char**& argv) {
@@ -553,7 +577,7 @@ void processImages(int& argc, char**& argv) {
     string imageName = imageFile;
     if (lastSlash != string::npos) {
       if (lastSlash >= imageFile.length() - 1)
-        die("Image name can't end in a slash");
+        die("Input name can't end in a slash");
       
       dirName = imageFile.substr(0, lastSlash);
       imageName = imageFile.substr(lastSlash + 1);
@@ -580,16 +604,41 @@ void processImages(int& argc, char**& argv) {
       }
     }
     
-    CurveBuffersPtr edges = CurveBuffersPtr(new CurveBuffers());
-    CurveDataPtr edgesData = CurveDataPtr(new CurveData());
-    CurveBuffersPtr lines = CurveBuffersPtr(new CurveBuffers());
-    CurveDataPtr linesData = CurveDataPtr(new CurveData());
-    FlowBuffersPtr flow = FlowBuffersPtr(new FlowBuffers());
-    FlowDataPtr flowData = FlowDataPtr(new FlowData());
+    CurveBuffersPtr edges, lines;
+    CurveDataPtr edgesData, linesData;
+    FlowBuffersPtr flow;
+    FlowDataPtr flowData;
     
-    cout << "Image " << ++soFar << "/" << total << ": " << baseName << endl;
+    cout << "Input " << ++soFar << "/" << total << ": " << baseName << endl;
     
-    std::string outputBaseName;
+    string outputBaseName = outputDir + "/" + baseName;
+    
+    if (curvePdf || flowPdf) {
+      if (isMatFile) {
+        if (curvePdf) {
+          CurveDataPtr localCurveData = ReadMatlabArray<2>(imageFile);
+          if (!localCurveData.get())
+            die("Failed to read curve data");
+          cout << "Writing curve data to PDF..." << flush;
+          WriteLLColumnsToPDF(outputBaseName + ".pdf", *localCurveData,
+                              pdfThresh, pdfDarken);
+          cout << " done." << endl;
+        }
+        else {
+          FlowDataPtr localFlowData = ReadMatlabArray<3>(imageFile);
+          if (!localFlowData.get())
+            die("Failed to read flow data");
+          cout << "Writing flow data to PDF..." << flush;
+          WriteFlowToPDF(outputBaseName + ".pdf", *localFlowData,
+                         pdfThresh, pdfDarken);
+          cout << " done." << endl;
+        }
+      }
+      else {
+        cerr << "Didn't write PDF for " << imageName
+             << "... not a MAT file" << endl;
+      }
+    }
     
     if (runEdgeInit || (runEdgeRelax && !isMatFile)) {
       if (!edgeInitOps.get()) {
@@ -603,19 +652,20 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
-      outputBaseName = outputDir + "/" + baseName + "-edge-initial";
+      
+      string outputName = outputBaseName + "-edge-initial";
       
       if (outputMatlab)
-        WriteMatlabArray(outputBaseName + ".mat", *edgesData);
+        WriteMatlabArray(outputName + ".mat", *edgesData);
       
       if (outputPdf) {
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData,
+        WriteLLColumnsToPDF(outputName + ".pdf", *edgesData,
                             pdfThresh, pdfDarken);
       }
     }
     if (runEdgeRelax) {
       if (isMatFile) {
-        if (!ReadMatlabArray(imageFile, *edgesData))
+        if (!(edgesData = ReadMatlabArray<2>(imageFile)).get())
           die("Failed to read edge data");
         WriteImageDataToBufferArray(*edgesData, *edges);
       }
@@ -634,18 +684,18 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
-      outputBaseName = outputDir + "/" + baseName + "-edge-relaxed";
+      string outputName = outputBaseName + "-edge-relaxed";
       
       if (outputMatlab)
-        WriteMatlabArray(outputBaseName + ".mat", *edgesData);
+        WriteMatlabArray(outputName + ".mat", *edgesData);
       
       if (outputPdf) {
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData,
+        WriteLLColumnsToPDF(outputName + ".pdf", *edgesData,
                             pdfThresh, pdfDarken);
       }
     }
     
-    if (runLineInit) {
+    if (runLineInit || (runLineRelax && !isMatFile)) {
       if (!lineInitOps.get()) {
         lineInitOps = shared_ptr<LLInitOps>(new LLInitOps(lineInitOpParams));
         lineInitOps->addProgressListener(&TextualProgressMonitor);
@@ -657,19 +707,19 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       linesData = ReadImageDataFromBufferArray(*lines);
-      outputBaseName = outputDir + "/" + baseName + "-line-initial";
+      string outputName = outputBaseName + "-line-initial";
       
       if (outputMatlab)
-        WriteMatlabArray(outputBaseName + ".mat", *linesData);
+        WriteMatlabArray(outputName + ".mat", *linesData);
       
       if (outputPdf) {
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData,
+        WriteLLColumnsToPDF(outputName + ".pdf", *linesData,
                             pdfThresh, pdfDarken);
       }
     }
-    if (runLineRelax || (runLineRelax && !isMatFile)) {
+    if (runLineRelax) {
       if (isMatFile) {
-        if (!ReadMatlabArray(imageFile, *linesData))
+        if (!(linesData = ReadMatlabArray<2>(imageFile)))
           die("Failed to read line data");
         WriteImageDataToBufferArray(*linesData, *lines);
       }
@@ -688,13 +738,13 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       linesData = ReadImageDataFromBufferArray(*lines);
-      outputBaseName = outputDir + "/" + baseName + "-line-relaxed";
+      string outputName = outputBaseName + "-line-relaxed";
       
       if (outputMatlab)
-        WriteMatlabArray(outputBaseName + ".mat", *linesData);
+        WriteMatlabArray(outputName + ".mat", *linesData);
       
       if (outputPdf)
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *linesData,
+        WriteLLColumnsToPDF(outputName + ".pdf", *linesData,
                             pdfThresh, pdfDarken);
     }
     
@@ -711,13 +761,13 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       edgesData = ReadImageDataFromBufferArray(*edges);
-      outputBaseName = outputDir + "/" + baseName + "-edge-suppressed";
+      string outputName = outputBaseName + "-edge-suppressed";
       
       if (outputMatlab)
-        WriteMatlabArray(outputBaseName + ".mat", *edgesData);
+        WriteMatlabArray(outputName + ".mat", *edgesData);
       
       if (outputPdf) {
-        WriteLLColumnsToPDF(outputBaseName + ".pdf", *edgesData,
+        WriteLLColumnsToPDF(outputName + ".pdf", *edgesData,
                             pdfThresh, pdfDarken);
       }
     }
@@ -753,19 +803,17 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       flowData = ReadImageDataFromBufferArray(*flow);
-      outputBaseName = outputDir + "/" + baseName + "-flow-initial";
+      string outputName = outputBaseName + "-flow-initial";
       
       if (outputMatlab)
-        WriteMatlabArray(outputBaseName + ".mat", *flowData);
+        WriteMatlabArray(outputName + ".mat", *flowData);
       
-      if (outputPdf) {
-        WriteFlowToPDF(outputBaseName + ".pdf", *flowData,
-                       pdfThresh, pdfDarken);
-      }
+      if (outputPdf)
+        WriteFlowToPDF(outputName + ".pdf", *flowData, pdfThresh, pdfDarken);
     }
     if (runFlowRelax) {
       if (isMatFile) {
-        if (!ReadMatlabArray(imageFile, *flowData))
+        if (!(flowData = ReadMatlabArray<3>(imageFile)).get())
           die("Failed to read flow data");
         WriteImageDataToBufferArray(*flowData, *flow);
       }
@@ -783,15 +831,13 @@ void processImages(int& argc, char**& argv) {
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
       flowData = ReadImageDataFromBufferArray(*flow);
-      outputBaseName = outputDir + "/" + baseName + "-flow-relaxed";
+      string outputName = outputBaseName + "-flow-relaxed";
       
       if (outputMatlab)
-        WriteMatlabArray(outputBaseName + ".mat", *flowData);
+        WriteMatlabArray(outputName + ".mat", *flowData);
       
-      if (outputPdf) {
-        WriteFlowToPDF(outputBaseName + ".pdf", *flowData,
-                       pdfThresh, pdfDarken);
-      }
+      if (outputPdf)
+        WriteFlowToPDF(outputName + ".pdf", *flowData, pdfThresh, pdfDarken);
     }
     
     if (argc > 1)
@@ -802,15 +848,11 @@ void processImages(int& argc, char**& argv) {
 }
 
 int main(int argc, char** argv) {
-  processOptions(--argc, ++argv);
-  
-  if (!runEdgeInit && !runEdgeRelax &&
-      !runLineInit && !runLineRelax &&
-      !runFlowInit && !runFlowRelax)
+  if (!processOptions(--argc, ++argv))
     die("No commands specified; use --help to see commands");
   
   if (!argc)
-    die("No image files specified; use --help for help");
+    die("No input files specified");
   
   try {
     processImages(argc, argv);
