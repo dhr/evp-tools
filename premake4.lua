@@ -1,41 +1,5 @@
 solution "EVP"
-  -- General settings
-
-  location "build"
-
-  flags {"ExtraWarnings", "FatalWarnings"}
-    
-  configurations {"Debug", "Release"}
-
-  configuration "Debug"
-    targetdir "bin"
-    flags {"Symbols"}
-  
-  configuration "Release"
-    targetdir "bin"
-    flags {"OptimizeSpeed"}
-  
-  configuration "not macosx"
-    links {"OpenCL"}
-  
-  configuration {"macosx", "gmake"}
-    linkoptions {"-framework OpenCL"}
-  
-  configuration "xcode*"
-    links {"OpenCL.framework"}
-
-  defines {"NO_GL_INTEROP"}
-    
-  files {"**.hpp", "**.cl", "premake4.lua"}
-  
-  dofile("embed.lua")
-  newaction {
-    trigger = "embed",
-    description = "Stringify OpenCL code",
-    execute = doembed
-  }
-  
-  prebuildcommands {"cd ..; premake4 embed"}
+  -- Options
 
   newoption {
     trigger = "arch",
@@ -56,26 +20,87 @@ solution "EVP"
 
   platforms {iif(is64bit, "x64", "x32")}
 
-  if _OPTIONS["no-jpeg"] then
-    defines {"EVP_NO_JPEG"}
-  end
-
-  if _OPTIONS["no-png"] then
-    defines {"EVP_NO_PNG"}
-  end
-
   newoption {
     trigger = "no-jpeg",
-    description = "Don't enable jpeg I/O (only affects EVP command line tool)"
+    description = "Don't enable jpeg I/O"
   }
 
   newoption {
     trigger = "no-png",
-    description = "Don't enable png I/O (only affects EVP command line tool)"
+    description = "Don't enable png I/O"
   }
+  
+  newoption {
+    trigger = "no-matio",
+    description = "Don't enable MAT file I/O"
+  }
+  
+  -- Configurations
+  
+  flags {"ExtraWarnings", "FatalWarnings"}
+    
+  configurations {"Debug", "Release"}
 
-  -- The EVP command line tool
+  configuration "Debug"
+    targetdir "bin"
+    flags {"Symbols"}
+  
+  configuration "Release"
+    targetdir "bin"
+    flags {"OptimizeSpeed"}
+  
+  -- Libraries/Defines
+  
+  configuration "not macosx"
+    links {"OpenCL"}
+  
+  configuration {"macosx", "gmake"}
+    linkoptions {"-framework OpenCL"}
+  
+  configuration "xcode*"
+    links {"OpenCL.framework"}
 
+  defines {"NO_GL_INTEROP"}
+
+  if not _OPTIONS["no-jpeg"] then
+    links {"jpeg"}
+  else
+    defines {"EVP_NO_JPEG"}
+  end
+
+  if not _OPTIONS["no-png"] then
+    links {"png"}
+
+    configuration "macosx"
+      includedirs {"/usr/X11/include"}
+      libdirs {"/usr/X11/lib"}
+  else
+    defines {"EVP_NO_PNG"}
+  end
+    
+  if not _OPTIONS["no-matio"] then
+    links {"matio"}
+  else
+    defines {"EVP_NO_MATIO"}
+  end
+  
+  -- Prebuild
+
+  location "build"
+  
+  dofile("embed.lua")
+  newaction {
+    trigger = "embed",
+    description = "Stringify OpenCL code",
+    execute = doembed
+  }
+  
+  prebuildcommands {"cd ..; premake4 embed"}
+  
+  -- Build
+  
+  files {"**.hpp", "**.cl", "premake4.lua"}
+  
   project "evp"
     kind "ConsoleApp"
     language "C++"
@@ -85,114 +110,3 @@ solution "EVP"
     includedirs {"deps/clip/include", "deps/evp/include"}
 
     files {"src/evp/evp.cpp"}
-
-    if not _OPTIONS["no-jpeg"] then
-      links {"jpeg"}
-    end
-
-    if not _OPTIONS["no-png"] then
-      links {"png"}
-
-      configuration "macosx"
-        includedirs {"/usr/X11/include"}
-        libdirs {"/usr/X11/lib"}
-    end
-
-  -- Building MATLAB mex files
-
-  newoption {
-    trigger = "matlabroot",
-    value = "path",
-    description = "Path to MATLAB root directory ('matlabroot' in MATLAB)"
-  }
-
-  if _OPTIONS["matlabroot"] then
-    project "evpmex"
-      kind "SharedLib"
-      language "C++"
-      
-      local archname = "???"
-
-      if os.get() == "macosx" then
-        archname = iif(is64bit, "maci64", "maci")
-      elseif os.get() == "linux" then
-        archname = iif(is64bit, "a64", "glx")
-      elseif os.get() == "windows" then
-        archname = iif(is64bit, "w64", "w32")
-      end
-
-      targetprefix ""
-      targetname "evp"
-      targetdir "bin/matlab"
-      targetextension (".mex" .. archname)
-
-      defines {"EVP_NO_JPEG", "EVP_NO_PNG"}
-
-      files {"src/matlab/evp.cpp"}
-
-      includedirs {"deps/clip/include", "deps/evp/include"}
-      includedirs {_OPTIONS["matlabroot"] .. "/extern/include"}
-      libdirs {_OPTIONS["matlabroot"] .. "/bin/" .. archname}
-
-      links {"mx", "mex", "mat"}
-
-      configuration "macosx"
-        buildoptions {
-          "-fno-common",
-          "-no-cpp-precomp",
-          "-DMATLAB_MEX_FILE",
-          "-DMX_COMPAT_32",
-          "-DNDEBUG",
-          "-arch " .. iif(is64bit, "x86_64", "i386")
-        }
-
-        linkoptions {
-          "-undefined error",
-          "-Wl,-twolevel_namespace",
-          "-Wl,-exported_symbols_list," ..
-            _OPTIONS["matlabroot"] .. "/extern/lib/" .. archname ..
-            "/mexFunction.map",
-          "-arch " .. iif(is64bit, "x86_64", "i386")
-        }
-  end
-
-  -- An ugly test-harness for tweaking and debugging
-
-  newoption {
-    trigger = "test",
-    description = "Generate build files to build the test-harness code"
-  }
-
-  if _OPTIONS["test"] then
-    project "test"
-      kind "ConsoleApp"
-      language "C++"
-      targetname "test"
-
-      files {"src/test/test.cpp"}
-
-      includedirs {"deps/clip/include", "deps/evp/include"}
-
-      if not _OPTIONS["no-jpeg"] then
-        links {"jpeg"}
-      end
-
-      if not _OPTIONS["no-png"] then
-        links {"png"}
-
-        configuration "macosx"
-          includedirs {"/usr/X11/include"}
-          libdirs {"/usr/X11/lib"}
-      end
-  end
-
---  if not _OPTIONS["help"] and
---     not _OPTIONS["test-harness"] and
---     not _OPTIONS["matlabroot"] and
---    print "No build files were produced because no relevant options were given."
---    print "Use '--matlabroot=<path>' to generate build files for the MATLAB bindings."
---    print "Use '--test' to generate build files for the test harness."
---    print "Use '--evp' to generate build files for the EVP command line tool."
---    print "Use the 'embed' action to stringify OpenCL code."
---    os.exit()
---  end
