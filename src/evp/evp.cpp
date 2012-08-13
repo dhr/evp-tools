@@ -619,19 +619,19 @@ void processImages(int& argc, char**& argv) {
           CurveDataPtr localCurveData = ReadMatlabArray<2>(imageFile);
           if (!localCurveData.get())
             die("Failed to read curve data");
-          cout << "Writing curve data to PDF..." << flush;
+          cout << "Writing curve data to PDF... " << flush;
           WriteLLColumnsToPDF(outputBaseName + ".pdf", *localCurveData,
                               pdfThresh, pdfDarken);
-          cout << " done." << endl;
+          cout << "done." << endl;
         }
         else {
           FlowDataPtr localFlowData = ReadMatlabArray<3>(imageFile);
           if (!localFlowData.get())
             die("Failed to read flow data");
-          cout << "Writing flow data to PDF..." << flush;
+          cout << "Writing flow data to PDF... " << flush;
           WriteFlowToPDF(outputBaseName + ".pdf", *localFlowData,
                          pdfThresh, pdfDarken);
-          cout << " done." << endl;
+          cout << "done." << endl;
         }
       }
       else {
@@ -651,7 +651,7 @@ void processImages(int& argc, char**& argv) {
       edges = edgeInitOps->apply(imageBuffer);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
-      edgesData = ReadImageDataFromBufferArray(*edges);
+      edgesData = BufferArrayToDataArray(*edges);
       
       string outputName = outputBaseName + "-edge-initial";
       
@@ -667,7 +667,7 @@ void processImages(int& argc, char**& argv) {
       if (isMatFile) {
         if (!(edgesData = ReadMatlabArray<2>(imageFile)).get())
           die("Failed to read edge data");
-        WriteImageDataToBufferArray(*edgesData, *edges);
+        edges = DataArrayToBufferArray(*edgesData);
       }
       
       if (!edgeRlxCurve.get()) {
@@ -683,7 +683,7 @@ void processImages(int& argc, char**& argv) {
       edges = edgeRlxCurve->apply(*edges);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
-      edgesData = ReadImageDataFromBufferArray(*edges);
+      edgesData = BufferArrayToDataArray(*edges);
       string outputName = outputBaseName + "-edge-relaxed";
       
       if (outputMatlab)
@@ -706,7 +706,7 @@ void processImages(int& argc, char**& argv) {
       lines = lineInitOps->apply(imageBuffer);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
-      linesData = ReadImageDataFromBufferArray(*lines);
+      linesData = BufferArrayToDataArray(*lines);
       string outputName = outputBaseName + "-line-initial";
       
       if (outputMatlab)
@@ -721,7 +721,7 @@ void processImages(int& argc, char**& argv) {
       if (isMatFile) {
         if (!(linesData = ReadMatlabArray<2>(imageFile)))
           die("Failed to read line data");
-        WriteImageDataToBufferArray(*linesData, *lines);
+        lines = DataArrayToBufferArray(*linesData);
       }
       
       if (!lineRlxCurve.get()) {
@@ -737,7 +737,7 @@ void processImages(int& argc, char**& argv) {
       lines = lineRlxCurve->apply(*lines);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
-      linesData = ReadImageDataFromBufferArray(*lines);
+      linesData = BufferArrayToDataArray(*lines);
       string outputName = outputBaseName + "-line-relaxed";
       
       if (outputMatlab)
@@ -760,7 +760,7 @@ void processImages(int& argc, char**& argv) {
       edges = edgeSuppressOps->apply(*edges, *lines);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
-      edgesData = ReadImageDataFromBufferArray(*edges);
+      edgesData = BufferArrayToDataArray(*edges);
       string outputName = outputBaseName + "-edge-suppressed";
       
       if (outputMatlab)
@@ -802,7 +802,7 @@ void processImages(int& argc, char**& argv) {
       flow = flowInitOps->apply(imageBuffer);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
-      flowData = ReadImageDataFromBufferArray(*flow);
+      flowData = BufferArrayToDataArray(*flow);
       string outputName = outputBaseName + "-flow-initial";
       
       if (outputMatlab)
@@ -815,7 +815,7 @@ void processImages(int& argc, char**& argv) {
       if (isMatFile) {
         if (!(flowData = ReadMatlabArray<3>(imageFile)).get())
           die("Failed to read flow data");
-        WriteImageDataToBufferArray(*flowData, *flow);
+        flow = DataArrayToBufferArray(*flowData);
       }
       
       if (!rlxFlowOp.get()) {
@@ -830,7 +830,7 @@ void processImages(int& argc, char**& argv) {
       flow = rlxFlowOp->apply(*flow);
       cout << "Done in " << toc()/1000000.f << " seconds." << endl;
       
-      flowData = ReadImageDataFromBufferArray(*flow);
+      flowData = BufferArrayToDataArray(*flow);
       string outputName = outputBaseName + "-flow-relaxed";
       
       if (outputMatlab)
