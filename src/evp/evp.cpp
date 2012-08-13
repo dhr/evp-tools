@@ -306,7 +306,7 @@ void flowInitTypeHandler(int& argc, char**& argv) {
     flowInitType = PushPullInit;
   else {
     die("Invalid initial flow op type " + name0 +
-        ", should be 'Gradient' or 'Gabor'");
+        ", should be 'Gradient', 'PushPull', or 'Gabor'");
   }
 }
 
